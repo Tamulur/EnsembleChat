@@ -115,7 +115,7 @@ def build_ui():
 
         with gr.Row():
             pdf_input = gr.File(label="Select PDF", file_types=[".pdf"], type="filepath")
-        chat = gr.Chatbot(height=650)  # Made chat box taller
+        chat = gr.Chatbot(height=650)
         user_box = gr.Textbox(label="You")
 
         with gr.Row():

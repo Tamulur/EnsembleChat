@@ -5,8 +5,15 @@ from typing import Dict, List, Tuple, Optional
 # Optional third-party clients
 try:
     import openai
+    # Initialize async client (OpenAI Python SDK v1+)
+    try:
+        _openai_client = openai.AsyncOpenAI()
+    except AttributeError:
+        # Fallback if AsyncOpenAI is not available (older SDK)
+        _openai_client = None
 except ImportError:  # pragma: no cover
     openai = None
+    _openai_client = None
 
 try:
     import anthropic
@@ -19,8 +26,8 @@ except ImportError:  # pragma: no cover
     genai = None
 
 # Model identifiers (override with env vars / config as desired)
-OPENAI_MODEL = "o3"
-CLAUDE_MODEL = "claude-sonnet-4"
+OPENAI_MODEL = "gpt-4.1"
+CLAUDE_MODEL = "claude-sonnet-4-0"
 GEMINI_MODEL = "gemini-2.5-pro"
 
 TIMEOUT = 120  # seconds
@@ -34,7 +41,7 @@ class LLMError(Exception):
 # File-upload caching so we only upload the PDF once per provider per session
 # ---------------------------------------------------------------------------
 _openai_file_cache: Dict[str, str] = {}
-_anthropic_file_cache: Dict[str, str] = {}
+_anthropic_file_cache: Dict[str, dict] = {}  # Changed to dict since we store content objects now
 _gemini_file_cache: Dict[str, object] = {}
 
 
@@ -43,94 +50,194 @@ _gemini_file_cache: Dict[str, object] = {}
 # ---------------------------------------------------------------------------
 
 async def _get_openai_file_id(pdf_path: str) -> str:
-    if openai is None:
-        raise LLMError("openai package not installed")
+    if _openai_client is None:
+        raise LLMError("openai package not installed or AsyncOpenAI not available")
     if pdf_path in _openai_file_cache:
         return _openai_file_cache[pdf_path]
 
-    resp = await openai.files.acreate(file=open(pdf_path, "rb"), purpose="assistants")
-    file_id = resp.id if hasattr(resp, "id") else resp["id"]
+    resp = await _openai_client.files.create(file=open(pdf_path, "rb"), purpose="assistants")
+    # `files.create` may return either a File object or a plain string ID depending on SDK version
+    if isinstance(resp, str):
+        file_id = resp
+    else:
+        # OpenAIObject or dataclass with attr access
+        file_id = getattr(resp, "id", None) or resp.get("id")
     _openai_file_cache[pdf_path] = file_id
     return file_id
 
 
 async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, stream: bool = False) -> Tuple[str, int, int]:
-    if openai is None:
-        raise LLMError("openai package not installed")
+    """Call the OpenAI Responses API (v1+ SDK) with optional PDF attachment."""
+    if _openai_client is None:
+        raise LLMError("openai package not installed or AsyncOpenAI not available")
 
-    extra = {}
+    file_id: Optional[str] = None
     if pdf_path:
         file_id = await _get_openai_file_id(pdf_path)
-        extra["file_ids"] = [file_id]
 
-    resp = await openai.ChatCompletion.acreate(
+    # Build the `input` payload for the Responses API
+    input_payload: List[Dict] = []
+    for idx, msg in enumerate(messages):
+        role = msg.get("role")
+        text_content = msg.get("content", "")
+
+        # Each content entry must be a list of blocks
+        content_blocks = [{"type": "input_text", "text": text_content}]
+        # Attach the PDF to the first user message only
+        if file_id and role == "user" and idx == 0:
+            content_blocks.insert(0, {"type": "input_file", "file_id": file_id})
+
+        input_payload.append({"role": role, "content": content_blocks})
+
+    resp = await _openai_client.responses.create(
         model=OPENAI_MODEL,
-        messages=messages,
+        tools=[{"type":"web_search"}],  # optional
+        input=input_payload,
         temperature=0.7,
         stream=stream,
         timeout=TIMEOUT,
-        **extra,
     )
 
+    # -------------------------------
+    # Parse response (stream / non-stream)
+    # -------------------------------
     if stream:
         collected: List[str] = []
         async for chunk in resp:
-            delta = chunk.choices[0].delta.get("content", "")
-            collected.append(delta)
-        text = "".join(collected)
-        # Streaming usage currently not returned
-        return text, 0, 0
+            # Streaming may yield plain text or structured chunks
+            if isinstance(chunk, str):
+                collected.append(chunk)
+                continue
+
+            # Structured chunk with choices list
+            if hasattr(chunk, "choices") and chunk.choices:
+                # OpenAI SDK objects expose .choices, dicts expose ["choices"]
+                first_choice = chunk.choices[0] if isinstance(chunk.choices, list) else chunk["choices"][0]
+                if isinstance(first_choice, dict):
+                    delta = first_choice.get("delta")
+                else:
+                    delta = getattr(first_choice, "delta", None)
+                if delta:
+                    if isinstance(delta, dict):
+                        message_part = delta.get("message")
+                    else:
+                        message_part = getattr(delta, "message", None)
+                    if message_part:
+                        if isinstance(message_part, dict):
+                            collected.append(message_part.get("content", ""))
+                        else:
+                            collected.append(getattr(message_part, "content", ""))
+            else:
+                # Fallback: attempt to cast to str
+                collected.append(str(chunk))
+        return "".join(collected), 0, 0
     else:
-        text = resp.choices[0].message.content
-        usage = resp.usage or {}
-        return text, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
+        if isinstance(resp, str):
+            text = resp
+            usage_dict = {}
+        else:
+            # Try to dig out text
+            if hasattr(resp, "choices") and resp.choices:
+                text = resp.choices[0].message.content
+            elif isinstance(resp, dict):
+                text = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
+            else:
+                text = str(resp)
+            usage_dict = getattr(resp, "usage", {}) or (resp.get("usage") if isinstance(resp, dict) else {}) or {}
+        return text, usage_dict.get("prompt_tokens", 0), usage_dict.get("completion_tokens", 0)
 
 
-async def _get_anthropic_file_id(pdf_path: str) -> str:
+async def _get_anthropic_file_content(pdf_path: str) -> dict:
+    """Get PDF content for Anthropic API (files are embedded directly, not uploaded separately)."""
     if anthropic is None:
         raise LLMError("anthropic package not installed")
     if pdf_path in _anthropic_file_cache:
         return _anthropic_file_cache[pdf_path]
 
-    client = anthropic.Anthropic()
-    resp = await client.files.create(file=open(pdf_path, "rb"))
-    file_id = resp.id if hasattr(resp, "id") else resp["id"]
-    _anthropic_file_cache[pdf_path] = file_id
-    return file_id
+    # Read PDF file and encode as base64
+    with open(pdf_path, "rb") as f:
+        pdf_data = f.read()
+    
+    import base64
+    pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
+    
+    # Create document content block for modern Anthropic API
+    document_content = {
+        "type": "document",
+        "source": {
+            "type": "base64",
+            "media_type": "application/pdf",
+            "data": pdf_base64
+        }
+    }
+    
+    _anthropic_file_cache[pdf_path] = document_content
+    return document_content
 
 
 async def _anthropic_call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, stream: bool = False) -> Tuple[str, int, int]:
     if anthropic is None:
         raise LLMError("anthropic package not installed")
 
-    client = anthropic.Anthropic()
-    extra = {}
-    if pdf_path:
-        file_id = await _get_anthropic_file_id(pdf_path)
-        extra["attachments"] = [{"file_id": file_id}]
+    client = anthropic.AsyncAnthropic()
+    
+    # Separate system messages from other messages
+    system_messages = []
+    non_system_messages = []
+    
+    for msg in messages:
+        if msg.get("role") == "system":
+            system_messages.append(msg.get("content", ""))
+        else:
+            non_system_messages.append(msg)
+    
+    # Combine system messages into a single system prompt
+    system_prompt = "\n\n".join(system_messages) if system_messages else None
+    
+    # Process non-system messages and embed PDF content directly if provided
+    processed_messages = []
+    for i, msg in enumerate(non_system_messages):
+        processed_msg = msg.copy()
+        
+        # Add PDF content to the first user message
+        if pdf_path and msg.get("role") == "user" and i == 0:
+            pdf_content = await _get_anthropic_file_content(pdf_path)
+            
+            # Convert content to list format if it's a string
+            if isinstance(processed_msg["content"], str):
+                text_content = processed_msg["content"]
+                processed_msg["content"] = [
+                    pdf_content,
+                    {"type": "text", "text": text_content}
+                ]
+            else:
+                # If content is already a list, prepend the PDF
+                processed_msg["content"] = [pdf_content] + processed_msg["content"]
+        
+        processed_messages.append(processed_msg)
+
+    # Prepare API call parameters
+    api_params = {
+        "model": CLAUDE_MODEL,
+        "messages": processed_messages,
+        "temperature": 0.7,
+        "max_tokens": 4096,
+    }
+    
+    # Add system prompt if we have one
+    if system_prompt:
+        api_params["system"] = system_prompt
 
     if stream:
-        stream_resp = await client.messages.create(
-            model=CLAUDE_MODEL,
-            messages=messages,
-            temperature=0.7,
-            stream=True,
-            max_tokens=4096,
-            **extra,
-        )
+        api_params["stream"] = True
+        stream_resp = await client.messages.create(**api_params)
         collected: List[str] = []
         async for chunk in stream_resp:
             if chunk.type == "content_block_delta":
                 collected.append(chunk.delta.text)
         return "".join(collected), 0, 0
     else:
-        resp = await client.messages.create(
-            model=CLAUDE_MODEL,
-            messages=messages,
-            temperature=0.7,
-            max_tokens=4096,
-            **extra,
-        )
+        resp = await client.messages.create(**api_params)
         text = resp.content[0].text if resp.content else ""
         return text, 0, 0
 
