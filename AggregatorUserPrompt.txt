@@ -1,0 +1,11 @@
+Your task is to synthesize the best reply from proposed replies to a user query about a paper. The proposed replies are attached at the end. Decide whether you can already synthesize a final reply from all of them that integrates the most useful information with the best way to explain it, or, if something is unclear or looks false, to send the proposals back with your remarks (whether to clarify something or remark that something looks wrong etc.)
+
+In the first case, when you can already output a final response yourself, start your output with the line """FINAL REPLY:""", and the follow it with your complete reply.
+
+In the second case, when you want to request another round of proposals, start your output with the line """REQUEST SYNTHESIS FROM PROPOSERS""". Then append the proposals each in turn, each in the form:
+
+# Proposed Reply 1:
+<the first proposal>
+
+# Remarks for Reply 1:
+<your remarks about the first proposal, what is unclear or looks false etc.>

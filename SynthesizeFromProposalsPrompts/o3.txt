@@ -1,0 +1,1 @@
+Your task is to synthesize the best reply from proposed replies to a user query about a paper. The proposed replies are attached at the end, together with a reviewer's remarks about each.
