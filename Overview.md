@@ -45,6 +45,7 @@ A local Gradio chat app for **personal use** that can, per user turn, send the s
 ### Common
 
 * Attach the **same PDF** to every request using each provider’s file APIs. Do not check sizes; assume typical research PDFs.
+* For models that support it, set the model to use web search automatically. For example, for OpenAI, use the Responses API to let it automatically use the web search tool.
 * Temperature: **0.7** for all calls. Other parameters at provider defaults.
 * **Timeout per request:** 120 seconds.
 * **Retries (proposers only):** up to 5 on error (exponential backoff is fine). If still failing, **proceed with remaining proposals**.
@@ -52,7 +53,6 @@ A local Gradio chat app for **personal use** that can, per user turn, send the s
 ### Single-LLM mode (buttons: o3 / Claude / Gemini)
 
 * Send: model’s **system prompt** (from `ProposerSystemPrompts/<Model>.txt`), the **PDF**, full **chat history** (final replies only), and the **new user input** as the user message.
-* For models that support it, set the model to use web search automatically.
 * Display the model’s reply **streaming** and **add to history** as the final reply.
 
 ### Multi-LLM mode (buttons: o3 & Claude / All)

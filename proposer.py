@@ -7,7 +7,7 @@ from utils import CostTracker
 
 
 async def call_proposer(model_label: str, user_input: str, chat_history: List[Dict], pdf_path: str,
-                        cost_tracker: CostTracker, retries: int = 5) -> str:
+                        cost_tracker: CostTracker, retries: int = 5, stream: bool = False) -> str:
     messages = []
     messages.append({"role": "system", "content": prompts.proposer_system(model_label)})
 
@@ -19,7 +19,7 @@ async def call_proposer(model_label: str, user_input: str, chat_history: List[Di
 
     messages.append({"role": "user", "content": user_input})
 
-    text, pt, ct = await call_llm(model_label, messages, pdf_path=pdf_path, stream=False, retries=retries)
+    text, pt, ct = await call_llm(model_label, messages, pdf_path=pdf_path, stream=stream, retries=retries)
     cost_tracker.add_usage(model_label, pt, ct)
     return text
 

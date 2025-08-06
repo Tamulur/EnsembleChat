@@ -7,7 +7,8 @@ try:
     import openai
     # Initialize async client (OpenAI Python SDK v1+)
     try:
-        _openai_client = openai.AsyncOpenAI()
+        _openai_client = openai.AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"),
+       base_url="https://api.openai.com/v1")
     except AttributeError:
         # Fallback if AsyncOpenAI is not available (older SDK)
         _openai_client = None
@@ -63,6 +64,8 @@ async def _get_openai_file_id(pdf_path: str) -> str:
         # OpenAIObject or dataclass with attr access
         file_id = getattr(resp, "id", None) or resp.get("id")
     _openai_file_cache[pdf_path] = file_id
+    if not file_id:
+        print("Failed to get OpenAI file_id") # DEBUG
     return file_id
 
 
@@ -74,21 +77,29 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str], 
     file_id: Optional[str] = None
     if pdf_path:
         file_id = await _get_openai_file_id(pdf_path)
+    else:
+        print("No PDF path provided") # DEBUG
+    if not file_id:
+        print("Not using OpenAI file_id") # DEBUG
 
     # Build the `input` payload for the Responses API
     input_payload: List[Dict] = []
+    hasAppendedPDF = False
     for idx, msg in enumerate(messages):
         role = msg.get("role")
         text_content = msg.get("content", "")
 
+        print(f"Message {idx}: role={role}, content={text_content}")  # DEBUG
+
         # Each content entry must be a list of blocks
         content_blocks = [{"type": "input_text", "text": text_content}]
         # Attach the PDF to the first user message only
-        if file_id and role == "user" and idx == 0:
+        if file_id and role == "user" and not hasAppendedPDF:
+            print("Using OpenAI file_id:", file_id) # DEBUG
             content_blocks.insert(0, {"type": "input_file", "file_id": file_id})
+            hasAppendedPDF = True
 
         input_payload.append({"role": role, "content": content_blocks})
-
     resp = await _openai_client.responses.create(
         model=OPENAI_MODEL,
         tools=[{"type":"web_search"}],  # optional
@@ -134,16 +145,51 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str], 
     else:
         if isinstance(resp, str):
             text = resp
+            print("OpenAI text from string:", text) # DEBUG
             usage_dict = {}
         else:
-            # Try to dig out text
-            if hasattr(resp, "choices") and resp.choices:
+            # ---------------- Extract text depending on schema ----------------
+            text = ""
+            # 1) Responses API (new): resp.output -> list of messages -> content blocks
+            if hasattr(resp, "output") and resp.output:
+                try:
+                    first_msg = resp.output[0]
+                    parts = []
+                    for block in getattr(first_msg, "content", []):
+                        block_text = getattr(block, "text", None)
+                        if block_text:
+                            parts.append(block_text)
+                    text = "".join(parts)
+                except Exception as e:
+                    print("[WARN] Failed to parse Response.output:", e)
+            # 2) Legacy chat/completions style with .choices
+            if not text and hasattr(resp, "choices") and resp.choices:
                 text = resp.choices[0].message.content
-            elif isinstance(resp, dict):
-                text = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
-            else:
+            # 3) Fallback for dict representations
+            if not text and isinstance(resp, dict):
+                if "output" in resp and resp["output"]:
+                    blocks = resp["output"][0].get("content", [])
+                    text = "".join(b.get("text", "") for b in blocks if isinstance(b, dict))
+                elif "choices" in resp:
+                    text = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
+            # 4) Ultimate fallback
+            if not text:
                 text = str(resp)
-            usage_dict = getattr(resp, "usage", {}) or (resp.get("usage") if isinstance(resp, dict) else {}) or {}
+                print("OpenAI text fallback str:", text)  # DEBUG
+            # ---------------- Normalize usage object ----------------
+            raw_usage = getattr(resp, "usage", None)
+            if raw_usage is None and isinstance(resp, dict):
+                raw_usage = resp.get("usage")
+            if raw_usage is None:
+                usage_dict = {}
+            elif isinstance(raw_usage, dict):
+                usage_dict = raw_usage
+            else:
+                # ResponseUsage or similar object from SDK
+                usage_dict = {
+                    "prompt_tokens": getattr(raw_usage, "input_tokens", getattr(raw_usage, "prompt_tokens", 0)),
+                    "completion_tokens": getattr(raw_usage, "output_tokens", getattr(raw_usage, "completion_tokens", 0)),
+                }
         return text, usage_dict.get("prompt_tokens", 0), usage_dict.get("completion_tokens", 0)
 
 

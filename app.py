@@ -33,8 +33,7 @@ class SessionState:
 
 async def _handle_single(model_label: str, user_input: str, state: SessionState):
     try:
-        reply_text = await call_proposer(model_label, user_input, state.chat_history.entries(), state.pdf_path,
-                                         state.cost_tracker, retries=1)
+        reply_text = await call_proposer(model_label, user_input, state.chat_history.entries(), state.pdf_path, state.cost_tracker, retries=1, stream=False)
     except Exception as e:
         print("[ERROR] single LLM", model_label, e)
         reply_text = "(error)"
@@ -116,7 +115,7 @@ def build_ui():
         with gr.Row():
             pdf_input = gr.File(label="Select PDF", file_types=[".pdf"], type="filepath")
         chat = gr.Chatbot(height=650)
-        user_box = gr.Textbox(label="You")
+        user_box = gr.Textbox(label="You", value="Please explain this paper to me.")
 
         with gr.Row():
             btns = [gr.Button(value=b) for b in BUTTONS]
