@@ -22,8 +22,18 @@ class ChatHistory:
         user_msg = None
         for entry in self._entries:
             if entry["role"] == "user":
+                # start a new conversation pair with no assistant yet
+                if user_msg is not None:
+                    # Edge case: consecutive user messages without assistant reply
+                    display.append((user_msg, None))
                 user_msg = entry["text"]
-            elif entry["role"] == "assistant" and user_msg is not None:
+            elif entry["role"] == "assistant":
+                if user_msg is None:
+                    # Assistant reply without preceding user (shouldn't happen), skip
+                    continue
                 display.append((user_msg, entry["text"]))
                 user_msg = None
+        # If there's a trailing user message without assistant yet, show it
+        if user_msg is not None:
+            display.append((user_msg, None))
         return display

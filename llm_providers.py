@@ -46,6 +46,34 @@ _anthropic_file_cache: Dict[str, dict] = {}  # Changed to dict since we store co
 _gemini_file_cache: Dict[str, object] = {}
 
 
+def print_messages(model_label: str, idx: int, role: str, content):
+    """Utility for debug logging of messages sent to providers.
+
+    Safely handles content that can be either a string or a list (Anthropic-style
+    message blocks). Long text is truncated for readability.
+    """
+    # Convert complex content structures to a readable string for logging
+    if isinstance(content, list):
+        # Extract text fields from common content block formats
+        parts = []
+        for block in content:
+            if isinstance(block, dict):
+                text_part = block.get("text") or block.get("type") or str(block)
+                parts.append(str(text_part))
+            else:
+                parts.append(str(block))
+        rendered = " | ".join(parts)
+    else:
+        rendered = str(content)
+
+    # Truncate to 120 characters for concise output
+    if len(rendered) > 120:
+        rendered = rendered[:117] + "..."
+
+    print(f"Message to {model_label} [{idx}, {role}]: '{rendered}'")
+
+
+
 # ---------------------------------------------------------------------------
 # Provider-specific helpers
 # ---------------------------------------------------------------------------
@@ -89,20 +117,19 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str], 
         role = msg.get("role")
         text_content = msg.get("content", "")
 
-        print(f"Message {idx}: role={role}, content={text_content}")  # DEBUG
+        print_messages("OpenAI", idx, role, text_content)
 
         # Each content entry must be a list of blocks
         content_blocks = [{"type": "input_text", "text": text_content}]
         # Attach the PDF to the first user message only
         if file_id and role == "user" and not hasAppendedPDF:
-            print("Using OpenAI file_id:", file_id) # DEBUG
             content_blocks.insert(0, {"type": "input_file", "file_id": file_id})
             hasAppendedPDF = True
 
         input_payload.append({"role": role, "content": content_blocks})
     resp = await _openai_client.responses.create(
         model=OPENAI_MODEL,
-        tools=[{"type":"web_search"}],  # optional
+        tools=[{"type":"web_search"}],
         input=input_payload,
         temperature=0.7,
         stream=stream,
@@ -262,6 +289,9 @@ async def _anthropic_call(messages: List[Dict[str, str]], pdf_path: Optional[str
         
         processed_messages.append(processed_msg)
 
+    for i, msg in enumerate(messages):
+        print_messages("Anthropic", i, msg.get("role"), msg.get("content"))
+
     # Prepare API call parameters
     api_params = {
         "model": CLAUDE_MODEL,
@@ -297,7 +327,6 @@ def _get_gemini_file_resource(pdf_path: str):
     _gemini_file_cache[pdf_path] = file_resource
     return file_resource
 
-
 async def _gemini_call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, stream: bool = False) -> Tuple[str, int, int]:
     if genai is None:
         raise LLMError("google-generativeai package not installed")
@@ -305,6 +334,9 @@ async def _gemini_call(messages: List[Dict[str, str]], pdf_path: Optional[str], 
     genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
     model = genai.GenerativeModel(GEMINI_MODEL)
 
+    # Debug: print all messages
+    for idx, msg in enumerate(messages):
+        print_messages("Gemini", idx, msg.get("role"), msg.get("content"))
     # Concatenate messages into a single prompt; Gemini's Python SDK doesn't yet support role syntax.
     content = "\n".join([(m["role"].upper() + ": " + m["content"]) for m in messages])
 

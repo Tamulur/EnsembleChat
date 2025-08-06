@@ -36,8 +36,6 @@ async def call_aggregator(proposals: List[str], user_input: str, chat_history: L
         content = entry.get("text")
         agg_messages.append({"role": role, "content": content})
 
-    # Latest user input
-    agg_messages.append({"role": "user", "content": user_input})
 
     # Aggregator user prompt file depending on forced final
     if iteration == 5:
@@ -46,7 +44,7 @@ async def call_aggregator(proposals: List[str], user_input: str, chat_history: L
         agg_user_prompt = prompts.aggregator_user()
 
     packet = format_proposal_packet(proposals)
-    agg_messages.append({"role": "user", "content": agg_user_prompt + "\n" + packet})
+    agg_messages.append({"role": "user", "content": "[" + agg_user_prompt + "\n" + packet + "]"})
 
     # Claude aggregator label is fixed
     retries = 1  # aggregator retry once on failure per spec
