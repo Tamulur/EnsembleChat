@@ -128,6 +128,7 @@ def build_ui():
                         return
 
                     if lbl in ["o3", "Claude", "Gemini"]:
+                        yield s.chat_history.as_display(), gr.update(value="**Status:** Waiting for " + lbl + "…", visible=True)
                         result = await _handle_single(lbl, last_user, s)
                         yield result, gr.update(value="", visible=False)
                     else:
@@ -135,8 +136,6 @@ def build_ui():
                         
                         # Create a generator for status updates
                         async def status_generator():
-                            yield s.chat_history.as_display(), gr.update(value="**Status:** Sending requests for proposals…", visible=True)
-                            
                             # Proposer phase (concurrent)
                             async def proposer_task(model):
                                 try:
@@ -148,7 +147,6 @@ def build_ui():
 
                             yield s.chat_history.as_display(), gr.update(value="**Status:** Collecting replies…", visible=True)
                             proposals = await asyncio.gather(*[proposer_task(m) for m in models])
-
                             # ---- DEBUG: log each proposer reply ----
                             for m, p in zip(models, proposals):
                                 print("[PROPOSAL]", m, "\n", p, "\n---\n")
@@ -208,7 +206,7 @@ def main():
     os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
     demo = build_ui()
     demo.queue()
-    demo.launch()
+    demo.launch(show_api=False)
 
 
 if __name__ == "__main__":

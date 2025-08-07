@@ -271,7 +271,12 @@ async def _anthropic_call(messages: List[Dict[str, str]], pdf_path: Optional[str
         "thinking": {
             "type": "enabled",
             "budget_tokens": 2048
-        }
+        },
+        "tools": [{               # expose the search tool
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 3      # optional throttle
+        }]
     }
     
     # Add system prompt if we have one
