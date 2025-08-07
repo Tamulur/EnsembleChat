@@ -34,7 +34,7 @@ OPENAI_MODEL = "o3" #"gpt-4.1"
 CLAUDE_MODEL = "claude-sonnet-4-0"
 GEMINI_MODEL = "gemini-2.5-pro"
 
-TIMEOUT = 120  # seconds
+TIMEOUT = 180  # seconds
 
 
 class LLMError(Exception):
@@ -136,7 +136,6 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
         model=OPENAI_MODEL,
         tools=[{"type":"web_search"}],
         input=input_payload,
-        temperature=0.7,
         timeout=TIMEOUT,
     )
 
