@@ -123,7 +123,9 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
         print_messages("OpenAI", idx, role, text_content)
 
         # Each content entry must be a list of blocks
-        content_blocks = [{"type": "input_text", "text": text_content}]
+        # Use correct content type based on role: "output_text" for assistant, "input_text" for others
+        content_type = "output_text" if role == "assistant" else "input_text"
+        content_blocks = [{"type": content_type, "text": text_content}]
         # Attach the PDF to the first user message only
         if file_id and role == "user" and not hasAppendedPDF:
             content_blocks.insert(0, {"type": "input_file", "file_id": file_id})
@@ -151,12 +153,17 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
         # 1) Responses API (new): resp.output -> list of messages -> content blocks
         if hasattr(resp, "output") and resp.output:
             try:
-                first_msg = resp.output[0]
+                # Iterate through all output items to find message content
+                # (resp.output[0] might be web search results, actual message could be later)
                 parts = []
-                for block in getattr(first_msg, "content", []):
-                    block_text = getattr(block, "text", None)
-                    if block_text:
-                        parts.append(block_text)
+                for output_item in resp.output:
+                    # Look for items that have content blocks (actual messages)
+                    content_blocks = getattr(output_item, "content", [])
+                    if content_blocks:
+                        for block in content_blocks:
+                            block_text = getattr(block, "text", None)
+                            if block_text:
+                                parts.append(block_text)
                 text = "".join(parts)
             except Exception as e:
                 print("[WARN] Failed to parse Response.output:", e)
@@ -166,8 +173,15 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
         # 3) Fallback for dict representations
         if not text and isinstance(resp, dict):
             if "output" in resp and resp["output"]:
-                blocks = resp["output"][0].get("content", [])
-                text = "".join(b.get("text", "") for b in blocks if isinstance(b, dict))
+                # Iterate through all output items to find content blocks
+                parts = []
+                for output_item in resp["output"]:
+                    if isinstance(output_item, dict) and "content" in output_item:
+                        blocks = output_item.get("content", [])
+                        for block in blocks:
+                            if isinstance(block, dict) and "text" in block:
+                                parts.append(block.get("text", ""))
+                text = "".join(parts)
             elif "choices" in resp:
                 text = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
         # 4) Ultimate fallback
@@ -297,7 +311,7 @@ def dicts_to_gemini_history(msgs: List[Dict[str, str]]) -> List[types.Content]:
     """Convert [{'role': str, 'content': str}, …] to SDK-ready history."""
     return [
         types.Content(
-            role=m["role"],
+            role="model" if m["role"] == "assistant" else m["role"],
             parts=[types.Part.from_text(text=m["content"])]
         )
         for m in msgs

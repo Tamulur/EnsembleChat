@@ -52,7 +52,17 @@ def build_ui():
 
         with gr.Row():
             pdf_input = gr.File(label="Select PDF", file_types=[".pdf"], type="filepath")
-        chat = gr.Chatbot(height=650)
+        chat = gr.Chatbot(
+            height=650,
+            elem_id="chat_interface",
+            latex_delimiters=[
+                {"left": "$$", "right": "$$", "display": True},
+                {"left": "$", "right": "$", "display": False},
+                {"left": "\\[", "right": "\\]", "display": True},
+                {"left": "\\(", "right": "\\)", "display": False},
+                {"left": "[", "right": "]", "display": True},  # Support OpenAI's format
+            ]
+        )
         status_display = gr.Markdown("", visible=False)
         user_box = gr.Textbox(label="You", value="Please explain this paper to me.")
 
@@ -206,7 +216,7 @@ def main():
     os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
     demo = build_ui()
     demo.queue()
-    demo.launch(show_api=False)
+    demo.launch()
 
 
 if __name__ == "__main__":
