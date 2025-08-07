@@ -21,6 +21,11 @@ A local Gradio chat app for **personal use** that can, per user turn, send the s
   5. **All** (o3 + Claude + Gemini)
      These map to either single-LLM mode (no aggregation) or proposer+aggregator mode.
 
+  * **Redo last reply:** If the most recent LLM response is unsatisfactory, leave the input box empty and click any action button. The application will
+    1. Remove that last AI reply from the visible chat (and persistence).
+    2. Re-process the **same user input as before** according to the button pressed.  
+       *Example:* clicking **All** resends the prior user input to all proposers and aggregates their new replies.
+
 ### UI status messages (non-stream)
 
 * “Sending requests for proposals…” when dispatching proposer calls.
@@ -141,37 +146,3 @@ AggregatorForceReplyUserPrompt.txt
 
 * Write chat transcripts (user inputs + final replies) to `Chats/<session_id>.json`.
 * Track per-turn timing (proposers total, aggregator per iteration) and the cost estimate counters.
-
-## Pseudocode (high level)
-
-```python
-def on_send(button, user_text):
-    append_to_history(role="user", text=user_text)
-
-    if button in ["o3", "Claude", "Gemini"]:
-        stream_and_save_final_reply(call_single_llm(button, user_text))
-        return
-
-    # Multi-LLM path
-    show("Sending requests for proposals...")
-    proposals = call_proposers(selected_models(button), user_text)  # retries up to 5 each
-    show("Collecting replies...")
-
-    for iteration in range(1, 6):
-        show(f"Aggregating replies, iteration {iteration}...")
-        prompt = "AggregatorForceReplyUserPrompt.txt" if iteration == 5 else "AggregatorUserPrompt.txt"
-        agg_out = call_aggregator(prompt, proposals, user_text)
-
-        first = first_non_empty_line(agg_out).lower()
-        if "final" in first:
-            final = text_after_first_line(agg_out)
-            display_and_save(final, stream=(iteration == 5))
-            return
-        elif "request synthesis from proposers" in first and iteration < 5:
-            proposals = call_synthesis_round(agg_out_after_first_line(agg_out), user_text)
-            continue
-        else:
-            # Fallback safety: treat as final
-            display_and_save(agg_out, stream=False)
-            return
-```

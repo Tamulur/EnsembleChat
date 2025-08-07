@@ -54,7 +54,7 @@ def build_ui():
             pdf_input = gr.File(label="Select PDF", file_types=[".pdf"], type="filepath")
         chat = gr.Chatbot(height=650)
         status_display = gr.Markdown("", visible=False)
-        user_box = gr.Textbox(label="You", value="Please explain this paper to me.")
+        user_box = gr.Textbox(label="You", value="Does this pdf mention LLMs?")
 
         with gr.Row():
             btns = [gr.Button(value=b) for b in BUTTONS]
@@ -69,11 +69,18 @@ def build_ui():
 
         # --- User message handling ---
         def _add_user_and_clear(user_input: str, s: SessionState):
-            """Add the raw user message to state & immediate display. Clear textbox."""
+            """Handle immediate chat updates and textbox clearing.
+
+            1. If the user types a **non-empty** prompt → add it to history (pending assistant) and clear box.
+            2. If the input is **empty** → treat as *redo last reply*: remove the most recent assistant
+               response (if any) so the preceding user input becomes the active prompt again.
+            """
             if not user_input:
-                # Nothing entered, no-op
+                # Empty input → attempt redo (delete last assistant reply)
+                s.chat_history.remove_last_assistant()
                 return s.chat_history.as_display(), "", s
-            # Store user message in official history (assistant will be added later)
+
+            # Normal new user input
             s.chat_history.add_user(user_input)
             return s.chat_history.as_display(), "", s
 

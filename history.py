@@ -16,6 +16,15 @@ class ChatHistory:
     def entries(self):
         return list(self._entries)
 
+    def remove_last_assistant(self):
+        """Remove the most recent assistant reply if it directly follows a user message.
+        Returns True if a reply was removed, False otherwise."""
+        if len(self._entries) >= 1 and self._entries[-1]["role"] == "assistant":
+            # Just pop the assistant message – keep the preceding user input
+            self._entries.pop()
+            return True
+        return False
+
     def as_display(self):
         # Converts to list of tuples (user, assistant) for Gradio Chatbot
         display = []
