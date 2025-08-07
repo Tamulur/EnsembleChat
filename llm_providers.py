@@ -30,7 +30,7 @@ except ImportError:  # pragma: no cover
     _gemini_client = None
 
 # Model identifiers (override with env vars / config as desired)
-OPENAI_MODEL = "gpt-4.1"
+OPENAI_MODEL = "o3" #"gpt-4.1"
 CLAUDE_MODEL = "claude-sonnet-4-0"
 GEMINI_MODEL = "gemini-2.5-pro"
 
