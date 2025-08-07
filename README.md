@@ -1,6 +1,6 @@
 # Multi-LLM PDF Chat (Gradio)
 
-Chat with any PDF locally while letting several large-language models collaborate on each answer.
+Chat with any PDF locally, querying LLms individually or let them work out a response among themselves
 
 ## ✨ Features
 - **Single or multi-model replies, decide per reply** – choose OpenAI o3, Claude Sonnet 4, Gemini 2.5 Pro, or an automatic aggregation of all three.
