@@ -22,9 +22,12 @@ except ImportError:  # pragma: no cover
     anthropic = None
 
 try:
-    import google.generativeai as genai
+    import google.genai as genai
+    from google.genai import types  # Updated to use new google-genai package
+    _gemini_client = genai.Client()
 except ImportError:  # pragma: no cover
     genai = None
+    _gemini_client = None
 
 # Model identifiers (override with env vars / config as desired)
 OPENAI_MODEL = "gpt-4.1"
@@ -97,7 +100,7 @@ async def _get_openai_file_id(pdf_path: str) -> str:
     return file_id
 
 
-async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, stream: bool = False) -> Tuple[str, int, int]:
+async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) -> Tuple[str, int, int]:
     """Call the OpenAI Responses API (v1+ SDK) with optional PDF attachment."""
     if _openai_client is None:
         raise LLMError("openai package not installed or AsyncOpenAI not available")
@@ -132,92 +135,60 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str], 
         tools=[{"type":"web_search"}],
         input=input_payload,
         temperature=0.7,
-        stream=stream,
         timeout=TIMEOUT,
     )
 
     # -------------------------------
-    # Parse response (stream / non-stream)
+    # Parse response
     # -------------------------------
-    if stream:
-        collected: List[str] = []
-        async for chunk in resp:
-            # Streaming may yield plain text or structured chunks
-            if isinstance(chunk, str):
-                collected.append(chunk)
-                continue
-
-            # Structured chunk with choices list
-            if hasattr(chunk, "choices") and chunk.choices:
-                # OpenAI SDK objects expose .choices, dicts expose ["choices"]
-                first_choice = chunk.choices[0] if isinstance(chunk.choices, list) else chunk["choices"][0]
-                if isinstance(first_choice, dict):
-                    delta = first_choice.get("delta")
-                else:
-                    delta = getattr(first_choice, "delta", None)
-                if delta:
-                    if isinstance(delta, dict):
-                        message_part = delta.get("message")
-                    else:
-                        message_part = getattr(delta, "message", None)
-                    if message_part:
-                        if isinstance(message_part, dict):
-                            collected.append(message_part.get("content", ""))
-                        else:
-                            collected.append(getattr(message_part, "content", ""))
-            else:
-                # Fallback: attempt to cast to str
-                collected.append(str(chunk))
-        return "".join(collected), 0, 0
+    if isinstance(resp, str):
+        text = resp
+        print("OpenAI text from string:", text) # DEBUG
+        usage_dict = {}
     else:
-        if isinstance(resp, str):
-            text = resp
-            print("OpenAI text from string:", text) # DEBUG
+        # ---------------- Extract text depending on schema ----------------
+        text = ""
+        # 1) Responses API (new): resp.output -> list of messages -> content blocks
+        if hasattr(resp, "output") and resp.output:
+            try:
+                first_msg = resp.output[0]
+                parts = []
+                for block in getattr(first_msg, "content", []):
+                    block_text = getattr(block, "text", None)
+                    if block_text:
+                        parts.append(block_text)
+                text = "".join(parts)
+            except Exception as e:
+                print("[WARN] Failed to parse Response.output:", e)
+        # 2) Legacy chat/completions style with .choices
+        if not text and hasattr(resp, "choices") and resp.choices:
+            text = resp.choices[0].message.content
+        # 3) Fallback for dict representations
+        if not text and isinstance(resp, dict):
+            if "output" in resp and resp["output"]:
+                blocks = resp["output"][0].get("content", [])
+                text = "".join(b.get("text", "") for b in blocks if isinstance(b, dict))
+            elif "choices" in resp:
+                text = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
+        # 4) Ultimate fallback
+        if not text:
+            text = str(resp)
+            print("OpenAI text fallback str:", text)  # DEBUG
+        # ---------------- Normalize usage object ----------------
+        raw_usage = getattr(resp, "usage", None)
+        if raw_usage is None and isinstance(resp, dict):
+            raw_usage = resp.get("usage")
+        if raw_usage is None:
             usage_dict = {}
+        elif isinstance(raw_usage, dict):
+            usage_dict = raw_usage
         else:
-            # ---------------- Extract text depending on schema ----------------
-            text = ""
-            # 1) Responses API (new): resp.output -> list of messages -> content blocks
-            if hasattr(resp, "output") and resp.output:
-                try:
-                    first_msg = resp.output[0]
-                    parts = []
-                    for block in getattr(first_msg, "content", []):
-                        block_text = getattr(block, "text", None)
-                        if block_text:
-                            parts.append(block_text)
-                    text = "".join(parts)
-                except Exception as e:
-                    print("[WARN] Failed to parse Response.output:", e)
-            # 2) Legacy chat/completions style with .choices
-            if not text and hasattr(resp, "choices") and resp.choices:
-                text = resp.choices[0].message.content
-            # 3) Fallback for dict representations
-            if not text and isinstance(resp, dict):
-                if "output" in resp and resp["output"]:
-                    blocks = resp["output"][0].get("content", [])
-                    text = "".join(b.get("text", "") for b in blocks if isinstance(b, dict))
-                elif "choices" in resp:
-                    text = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
-            # 4) Ultimate fallback
-            if not text:
-                text = str(resp)
-                print("OpenAI text fallback str:", text)  # DEBUG
-            # ---------------- Normalize usage object ----------------
-            raw_usage = getattr(resp, "usage", None)
-            if raw_usage is None and isinstance(resp, dict):
-                raw_usage = resp.get("usage")
-            if raw_usage is None:
-                usage_dict = {}
-            elif isinstance(raw_usage, dict):
-                usage_dict = raw_usage
-            else:
-                # ResponseUsage or similar object from SDK
-                usage_dict = {
-                    "prompt_tokens": getattr(raw_usage, "input_tokens", getattr(raw_usage, "prompt_tokens", 0)),
-                    "completion_tokens": getattr(raw_usage, "output_tokens", getattr(raw_usage, "completion_tokens", 0)),
-                }
-        return text, usage_dict.get("prompt_tokens", 0), usage_dict.get("completion_tokens", 0)
+            # ResponseUsage or similar object from SDK
+            usage_dict = {
+                "prompt_tokens": getattr(raw_usage, "input_tokens", getattr(raw_usage, "prompt_tokens", 0)),
+                "completion_tokens": getattr(raw_usage, "output_tokens", getattr(raw_usage, "completion_tokens", 0)),
+            }
+    return text, usage_dict.get("prompt_tokens", 0), usage_dict.get("completion_tokens", 0)
 
 
 async def _get_anthropic_file_content(pdf_path: str) -> dict:
@@ -248,7 +219,7 @@ async def _get_anthropic_file_content(pdf_path: str) -> dict:
     return document_content
 
 
-async def _anthropic_call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, stream: bool = False) -> Tuple[str, int, int]:
+async def _anthropic_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) -> Tuple[str, int, int]:
     if anthropic is None:
         raise LLMError("anthropic package not installed")
 
@@ -304,59 +275,67 @@ async def _anthropic_call(messages: List[Dict[str, str]], pdf_path: Optional[str
     if system_prompt:
         api_params["system"] = system_prompt
 
-    if stream:
-        api_params["stream"] = True
-        stream_resp = await client.messages.create(**api_params)
-        collected: List[str] = []
-        async for chunk in stream_resp:
-            if chunk.type == "content_block_delta":
-                collected.append(chunk.delta.text)
-        return "".join(collected), 0, 0
-    else:
-        resp = await client.messages.create(**api_params)
-        text = resp.content[0].text if resp.content else ""
-        return text, 0, 0
+    resp = await client.messages.create(**api_params)
+    text = resp.content[0].text if resp.content else ""
+    return text, 0, 0
 
+
+
+def dicts_to_gemini_history(msgs: List[Dict[str, str]]) -> List[types.Content]:
+    """Convert [{'role': str, 'content': str}, …] to SDK-ready history."""
+    return [
+        types.Content(
+            role=m["role"],
+            parts=[types.Part.from_text(text=m["content"])]
+        )
+        for m in msgs
+    ]
 
 def _get_gemini_file_resource(pdf_path: str):
     if genai is None:
-        raise LLMError("google-generativeai package not installed")
+        raise LLMError("google-genai package not installed")
     if pdf_path in _gemini_file_cache:
         return _gemini_file_cache[pdf_path]
-    file_resource = genai.upload_file(path=pdf_path)
+    file_resource = _gemini_client.files.upload( file=pdf_path)
     _gemini_file_cache[pdf_path] = file_resource
     return file_resource
 
-async def _gemini_call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, stream: bool = False) -> Tuple[str, int, int]:
+async def _gemini_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) -> Tuple[str, int, int]:
     if genai is None:
-        raise LLMError("google-generativeai package not installed")
-
-    genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
-    model = genai.GenerativeModel(GEMINI_MODEL)
+        raise LLMError("google-genai package not installed")
 
     # Debug: print all messages
     for idx, msg in enumerate(messages):
         print_messages("Gemini", idx, msg.get("role"), msg.get("content"))
-    # Concatenate messages into a single prompt; Gemini's Python SDK doesn't yet support role syntax.
-    content = "\n".join([(m["role"].upper() + ": " + m["content"]) for m in messages])
 
-    inputs: List = []
-    if pdf_path:
-        file_res = _get_gemini_file_resource(pdf_path)
-        inputs.append(file_res)
-    inputs.append(content)
+    system_instruction = messages.pop(0)["content"]
+    if not messages or messages[-1]["role"] != "user":
+        raise ValueError("`messages` must end with a user message in this workflow.")
 
-    if stream:
-        resp = model.generate_content(inputs, stream=True, generation_config={"temperature": 0.7})
-        text_parts: List[str] = []
-        for chunk in resp:
-            if chunk.candidates and chunk.candidates[0].content.parts:
-                text_parts.append(chunk.candidates[0].content.parts[0].text)
-        return "".join(text_parts), 0, 0
-    else:
-        resp = model.generate_content(inputs, generation_config={"temperature": 0.7})
-        return resp.text, 0, 0
+    last_user_content = messages[-1]["content"]   # newest user prompt
+    prior_history    = dicts_to_gemini_history(messages[:-1])  # everything before it
 
+    pdf = _get_gemini_file_resource(pdf_path)
+    pdf_part = types.Part.from_uri(
+        file_uri=pdf.uri,          # ← the URI returned by files.upload()
+        mime_type=pdf.mime_type    # ← "application/pdf"
+    )     
+    pdf_content = types.Content(role="user", parts=[pdf_part])   # PDF first, no text
+    prior_history.insert(0, pdf_content)
+    grounding_tool = types.Tool(
+        google_search=types.GoogleSearch()
+    )
+    config = types.GenerateContentConfig(
+        system_instruction=system_instruction,
+        tools=[grounding_tool]
+    )
+    chat = _gemini_client.chats.create(
+            model=GEMINI_MODEL,
+            config=config,
+            history=prior_history)
+
+    resp = chat.send_message(last_user_content)
+    return resp.text, 0, 0
 
 # ---------------------------------------------------------------------------
 # Unified public helper with retry/backoff
@@ -379,7 +358,6 @@ async def call_llm(
     messages: List[Dict[str, str]],
     *,
     pdf_path: Optional[str] = None,
-    stream: bool = False,
     retries: int = 1,
 ) -> Tuple[str, int, int]:
     """Unified async call that routes to the appropriate provider wrapper.
@@ -393,8 +371,6 @@ async def call_llm(
     pdf_path : str | None
         Local path to PDF to attach to the request (will be uploaded once per
         provider and reused).
-    stream : bool
-        Whether to stream tokens back (only used in certain cases).
     retries : int
         Automatic retry count for proposer calls.
     """
@@ -402,11 +378,11 @@ async def call_llm(
     async def _inner():
         ml = model_label.lower()
         if ml == "o3":
-            return await _openai_call(messages, pdf_path, stream=stream)
+            return await _openai_call(messages, pdf_path)
         elif ml == "claude":
-            return await _anthropic_call(messages, pdf_path, stream=stream)
+            return await _anthropic_call(messages, pdf_path)
         elif ml == "gemini":
-            return await _gemini_call(messages, pdf_path, stream=stream)
+            return await _gemini_call(messages, pdf_path)
         else:
             raise ValueError(f"Unknown model label: {model_label}")
 

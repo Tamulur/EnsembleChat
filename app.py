@@ -33,7 +33,7 @@ class SessionState:
 
 async def _handle_single(model_label: str, user_input: str, state: SessionState):
     try:
-        reply_text = await call_proposer(model_label, user_input, state.chat_history.entries(), state.pdf_path, state.cost_tracker, retries=1, stream=False)
+        reply_text = await call_proposer(model_label, user_input, state.chat_history.entries(), state.pdf_path, state.cost_tracker, retries=1)
     except Exception as e:
         print("[ERROR] single LLM", model_label, e)
         reply_text = "(error)"
@@ -157,9 +157,8 @@ def build_ui():
                             for iteration in range(1, 6):
                                 yield s.chat_history.as_display(), gr.update(value=f"**Status:** Aggregating replies, iteration {iteration}…", visible=True)
                                 
-                                stream_final = iteration == 5
                                 agg_out = await call_aggregator(proposals, last_user, s.chat_history.entries(), s.pdf_path,
-                                                                s.cost_tracker, iteration, stream_final=stream_final)
+                                                                s.cost_tracker, iteration)
 
                                 first = first_non_empty_line(agg_out).lower()
                                 if "final" in first:

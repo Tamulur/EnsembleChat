@@ -32,13 +32,9 @@ A local Gradio chat app for **personal use** that can, per user turn, send the s
 * “Collecting replies…” while waiting for proposers.
 * “Aggregating replies, iteration *N*…” during each aggregator pass.
 
-### Streaming
+### No Streaming
 
-* **Stream tokens** when we know a final will be produced:
-
-  * Single-LLM buttons (o3 / Claude / Gemini).
-  * Aggregator **forced final** pass (on the 5th iteration for that user turn).
-* Otherwise, aggregator output is fetched non-streaming and then displayed.
+* Never stream the output, just let it generate in one go.
 
 ## Data/State
 
@@ -58,7 +54,7 @@ A local Gradio chat app for **personal use** that can, per user turn, send the s
 ### Single-LLM mode (buttons: o3 / Claude / Gemini)
 
 * Send: model’s **system prompt** (from `ProposerSystemPrompts/<Model>.txt`), the **PDF**, full **chat history** (final replies only), and the **new user input** as the user message.
-* Display the model’s reply **streaming** and **add to history** as the final reply.
+* Display the model's reply and **add to history** as the final reply.
 
 ### Multi-LLM mode (buttons: o3 & Claude / All)
 
@@ -90,7 +86,7 @@ A local Gradio chat app for **personal use** that can, per user turn, send the s
 
    * **Aggregator control via first line (case-insensitive):**
 
-     * If the first non-empty line contains **“FINAL”** (e.g., `FINAL REPLY:`), treat everything after that line as the **final reply**. Show it (non-stream unless this is the forced final), and **add to history**.
+     * If the first non-empty line contains **"FINAL"** (e.g., `FINAL REPLY:`), treat everything after that line as the **final reply**. Show it and **add to history**.
      * If the first non-empty line contains **“REQUEST SYNTHESIS FROM PROPOSERS”**, trigger a **re-synthesis round**:
 
        * For each proposer, send:
@@ -101,7 +97,7 @@ A local Gradio chat app for **personal use** that can, per user turn, send the s
          * Its **synthesis prompt** from `SynthesizeFromProposalsPrompts/<Model>.txt` as user message, **appending the aggregator’s notes** (everything after the sentinel line).
        * Collect the new proposals and go back to **Aggregator phase** with iteration `N+1`. Status: “Aggregating replies, iteration N+1…”.
 
-   * **Iteration cap & forced final:** On the **5th** aggregator pass for the same user input, **replace** `AggregatorUserPrompt.txt` with `AggregatorForceReplyUserPrompt.txt` to force a final. Display **streaming**, then **add to history**.
+   * **Iteration cap & forced final:** On the **5th** aggregator pass for the same user input, **replace** `AggregatorUserPrompt.txt` with `AggregatorForceReplyUserPrompt.txt` to force a final. Display the result, then **add to history**.
 
 ## Prompts & Files
 
