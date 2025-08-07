@@ -267,8 +267,11 @@ async def _anthropic_call(messages: List[Dict[str, str]], pdf_path: Optional[str
     api_params = {
         "model": CLAUDE_MODEL,
         "messages": processed_messages,
-        "temperature": 0.7,
         "max_tokens": 4096,
+        "thinking": {
+            "type": "enabled",
+            "budget_tokens": 2048
+        }
     }
     
     # Add system prompt if we have one
@@ -276,8 +279,11 @@ async def _anthropic_call(messages: List[Dict[str, str]], pdf_path: Optional[str
         api_params["system"] = system_prompt
 
     resp = await client.messages.create(**api_params)
-    text = resp.content[0].text if resp.content else ""
-    return text, 0, 0
+
+    answer = next(
+        (blk.text for blk in resp.content if blk.type == "text"), ""
+    )
+    return answer, 0, 0
 
 
 
