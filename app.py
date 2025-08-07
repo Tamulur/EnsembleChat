@@ -54,7 +54,7 @@ def build_ui():
             pdf_input = gr.File(label="Select PDF", file_types=[".pdf"], type="filepath")
         chat = gr.Chatbot(height=650)
         status_display = gr.Markdown("", visible=False)
-        user_box = gr.Textbox(label="You", value="Does this pdf mention LLMs?")
+        user_box = gr.Textbox(label="You", value="Please explain this paper to me.")
 
         with gr.Row():
             btns = [gr.Button(value=b) for b in BUTTONS]

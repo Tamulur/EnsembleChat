@@ -267,16 +267,17 @@ async def _anthropic_call(messages: List[Dict[str, str]], pdf_path: Optional[str
     api_params = {
         "model": CLAUDE_MODEL,
         "messages": processed_messages,
-        "max_tokens": 4096,
+        "max_tokens": 20000,
         "thinking": {
             "type": "enabled",
-            "budget_tokens": 2048
+            "budget_tokens": 8192
         },
-        "tools": [{               # expose the search tool
-            "type": "web_search_20250305",
-            "name": "web_search",
-            "max_uses": 3      # optional throttle
-        }]
+        # For some reason the output is truncated when using the search tool. Maybe use streaming and higher max_tokens?
+        # "tools": [{
+        #     "type": "web_search_20250305",
+        #     "name": "web_search",
+        #     "max_uses": 3
+        # }]
     }
     
     # Add system prompt if we have one
