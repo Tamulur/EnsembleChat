@@ -46,7 +46,7 @@ async def _handle_single(model_label: str, user_input: str, state: SessionState)
 
 
 def build_ui():
-    with gr.Blocks() as demo:
+    with gr.Blocks(css="footer {visibility: hidden}") as demo:
         # gr.Markdown("## EnsembleChat")
         state = gr.State(SessionState())
 
