@@ -2,6 +2,8 @@ import asyncio
 import os
 
 import gradio as gr
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, message="You have not specified a value for the `type` parameter.*")
 
 from utils import CostTracker, save_chat, timestamp_id, BUDGET_LIMIT
 from history import ChatHistory
@@ -29,6 +31,8 @@ class SessionState:
         self.chat_history = ChatHistory()
         self.cost_tracker = CostTracker()
         self.chat_id = timestamp_id()
+        # Per-model chat history for tabs
+        self.model_histories = {"o3": [], "Claude": [], "Gemini": []}
 
 
 async def _handle_single(model_label: str, user_input: str, state: SessionState):
@@ -37,7 +41,9 @@ async def _handle_single(model_label: str, user_input: str, state: SessionState)
     except Exception as e:
         print("[ERROR] single LLM", model_label, e)
         reply_text = "(error)"
+    # Update chat history and per-model tab history
     state.chat_history.add_assistant(reply_text)
+    state.model_histories[model_label].append(("", reply_text))
     save_chat(state.chat_id, state.chat_history.entries(), state.pdf_path)
     return state.chat_history.as_display()
 
@@ -50,24 +56,60 @@ def build_ui():
         # gr.Markdown("## EnsembleChat")
         state = gr.State(SessionState())
 
-        with gr.Row():
-            pdf_input = gr.File(label="Select PDF", file_types=[".pdf"], type="filepath")
-        chat = gr.Chatbot(
-            height=650,
-            elem_id="chat_interface",
-            latex_delimiters=[
-                {"left": "$$", "right": "$$", "display": True},
-                {"left": "$", "right": "$", "display": False},
-                {"left": "\\[", "right": "\\]", "display": True},
-                {"left": "\\(", "right": "\\)", "display": False},
-                {"left": "[", "right": "]", "display": True},  # Support OpenAI's format
-            ]
-        )
-        status_display = gr.Markdown("", visible=False)
-        user_box = gr.Textbox(label="You", value="Please explain this paper to me.")
+        # ---------- TABS LAYOUT ----------
+        with gr.Tabs() as tabs:
+            # ---- Main Chat tab ----
+            with gr.Tab("Chat"):
+                with gr.Row():
+                    pdf_input = gr.File(label="Select PDF", file_types=[".pdf"], type="filepath")
 
-        with gr.Row():
-            btns = [gr.Button(value=b) for b in BUTTONS]
+                chat = gr.Chatbot(
+                    height=600,
+                    elem_id="chat_interface",
+                    latex_delimiters=[
+                        {"left": "$$", "right": "$$", "display": True},
+                        {"left": "$", "right": "$", "display": False},
+                        {"left": "\\[", "right": "\\]", "display": True},
+                        {"left": "\\(", "right": "\\)", "display": False},
+                        {"left": "[", "right": "]", "display": True},  # Support OpenAI's format
+                    ]
+                )
+                status_display = gr.Markdown("", visible=False)
+                user_box = gr.Textbox(label="You", value="Please explain this paper to me.")
+
+                with gr.Row():
+                    btns = [gr.Button(value=b) for b in BUTTONS]
+
+            # ---- Per-model tabs ----
+            with gr.Tab("o3"):
+                o3_view = gr.Chatbot(label="o3 Output", height=850, value=[], 
+                                      latex_delimiters=[
+                                          {"left": "$$", "right": "$$", "display": True},
+                                          {"left": "$", "right": "$", "display": False},
+                                          {"left": "\\[", "right": "\\]", "display": True},
+                                          {"left": "\\(", "right": "\\)", "display": False},
+                                          {"left": "[", "right": "]", "display": True},
+                                      ])
+
+            with gr.Tab("Claude"):
+                claude_view = gr.Chatbot(label="Claude Output", height=850, value=[],
+                                        latex_delimiters=[
+                                          {"left": "$$", "right": "$$", "display": True},
+                                          {"left": "$", "right": "$", "display": False},
+                                          {"left": "\\[", "right": "\\]", "display": True},
+                                          {"left": "\\(", "right": "\\)", "display": False},
+                                          {"left": "[", "right": "]", "display": True},
+                                        ])
+
+            with gr.Tab("Gemini"):
+                gemini_view = gr.Chatbot(label="Gemini Output", height=850, value=[],
+                                       latex_delimiters=[
+                                          {"left": "$$", "right": "$$", "display": True},
+                                          {"left": "$", "right": "$", "display": False},
+                                          {"left": "\\[", "right": "\\]", "display": True},
+                                          {"left": "\\(", "right": "\\)", "display": False},
+                                          {"left": "[", "right": "]", "display": True},
+                                       ])
 
         # Update pdf path
         def _set_pdf(file, s: SessionState):
@@ -116,8 +158,15 @@ def build_ui():
             # Stage 2: long-running processing with status updates
             def _make_process(lbl):
                 async def _handler(s: SessionState):
+                    # Helper to build update objects for each model tab
+                    def _model_updates():
+                        return (
+                            gr.update(value=s.model_histories["o3"]),
+                            gr.update(value=s.model_histories["Claude"]),
+                            gr.update(value=s.model_histories["Gemini"]),
+                        )
                     # Status updates will be handled through progress tracking
-                    yield s.chat_history.as_display(), gr.update(value="", visible=False)
+                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_updates()
                     
                     # Retrieve last user message (just appended by _add_user_and_clear)
                     last_user = None
@@ -126,7 +175,7 @@ def build_ui():
                             last_user = entry["text"]
                             break
                     if last_user is None:
-                        yield s.chat_history.as_display(), gr.update(value="", visible=False)
+                        yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_updates()
                         return
 
                     # Budget guard (rough, before making calls we estimate slight cost)
@@ -138,9 +187,9 @@ def build_ui():
                         return
 
                     if lbl in ["o3", "Claude", "Gemini"]:
-                        yield s.chat_history.as_display(), gr.update(value="**Status:** Waiting for " + lbl + "…", visible=True)
+                        yield s.chat_history.as_display(), gr.update(value="**Status:** Waiting for " + lbl + "…", visible=True), *_model_updates()
                         result = await _handle_single(lbl, last_user, s)
-                        yield result, gr.update(value="", visible=False)
+                        yield result, gr.update(value="", visible=False), *_model_updates()
                     else:
                         models = MULTI_BUTTON_MODELS[lbl]
                         
@@ -155,15 +204,19 @@ def build_ui():
                                     print("[ERROR] proposer", model, e)
                                     return "(error)"
 
-                            yield s.chat_history.as_display(), gr.update(value="**Status:** Collecting replies…", visible=True)
+                            yield s.chat_history.as_display(), gr.update(value="**Status:** Collecting replies…", visible=True), *_model_updates()
                             proposals = await asyncio.gather(*[proposer_task(m) for m in models])
                             # ---- DEBUG: log each proposer reply ----
                             for m, p in zip(models, proposals):
                                 print("[PROPOSAL]", m, "\n", p, "\n---\n")
+                                s.model_histories[m].append(("", p))
+
+                            # Immediately update model tabs with the new proposals
+                            yield s.chat_history.as_display(), gr.update(value="**Status:** Aggregating replies…", visible=True), *_model_updates()
 
                             # Aggregator iterations
                             for iteration in range(1, 6):
-                                yield s.chat_history.as_display(), gr.update(value=f"**Status:** Aggregating replies, iteration {iteration}…", visible=True)
+                                yield s.chat_history.as_display(), gr.update(value=f"**Status:** Aggregating replies, iteration {iteration}…", visible=True), *_model_updates()
                                 
                                 agg_out = await call_aggregator(proposals, last_user, s.chat_history.entries(), s.pdf_path,
                                                                 s.cost_tracker, iteration)
@@ -173,7 +226,7 @@ def build_ui():
                                     final_reply = text_after_first_line(agg_out)
                                     s.chat_history.add_assistant(final_reply)
                                     save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
-                                    yield s.chat_history.as_display(), gr.update(value="", visible=False)
+                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_updates()
                                     return
                                 elif "request synthesis from proposers" in first and iteration < 5:
                                     # Send aggregator notes to proposers for new synthesis round
@@ -190,23 +243,24 @@ def build_ui():
                                     # ---- DEBUG: log each synthesis proposal ----
                                     for m, p in zip(models, proposals):
                                         print("[SYNTHESIS PROPOSAL]", m, "\n", p, "\n---\n")
+                                        s.model_histories[m].append(("", p))
                                     continue
                                 else:
                                     # Fallback treat entire aggregator output as final
                                     s.chat_history.add_assistant(agg_out)
                                     save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
-                                    yield s.chat_history.as_display(), gr.update(value="", visible=False)
+                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_updates()
                                     return
                         
-                        async for chat_display, status_update in status_generator():
-                            yield chat_display, status_update
+                        async for chat_display, status_update, o3_up, claude_up, gemini_up in status_generator():
+                            yield chat_display, status_update, o3_up, claude_up, gemini_up
                 
                 return _handler
 
             click_event.then(
                 _make_process(btn.value),
                 inputs=state,
-                outputs=[chat, status_display],
+                outputs=[chat, status_display, o3_view, claude_view, gemini_view],
             )
 
     return demo
