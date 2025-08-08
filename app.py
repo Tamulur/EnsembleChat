@@ -52,7 +52,26 @@ async def _handle_single(model_label: str, user_input: str, state: SessionState)
 
 
 def build_ui():
-    with gr.Blocks(css="footer {visibility: hidden}") as demo:
+    with gr.Blocks(css=(
+        "footer {visibility: hidden}\n"
+        "#chat_interface .wrapper,\n"
+        "#chat_interface .wrapper.svelte-g3p8na {\n"
+        "  scroll-behavior: auto !important;\n"
+        "  overscroll-behavior: contain;\n"
+        "}\n"
+        "#chat_interface .bubble-wrap,\n"
+        "#chat_interface .bubble-wrap.svelte-gjtrl6 {\n"
+        "  scroll-behavior: auto !important;\n"
+        "}\n"
+        "#chat_interface .wrapper * { overflow-anchor: none; }\n"
+        "/* Hide Chatbot clear/trash icon inside the main chat */\n"
+        "#chat_interface button[aria-label*='clear' i],\n"
+        "#chat_interface button[title*='clear' i],\n"
+        "#chat_interface button[aria-label*='delete' i],\n"
+        "#chat_interface button[title*='delete' i] {\n"
+        "  display: none !important;\n"
+        "}\n"
+    )) as demo:
         # gr.Markdown("## EnsembleChat")
         state = gr.State(SessionState())
 
@@ -66,6 +85,8 @@ def build_ui():
                 chat = gr.Chatbot(
                     height=600,
                     elem_id="chat_interface",
+                    autoscroll=False,
+                    show_label=False,
                     latex_delimiters=[
                         {"left": "$$", "right": "$$", "display": True},
                         {"left": "$", "right": "$", "display": False},
@@ -73,6 +94,73 @@ def build_ui():
                         {"left": "\\(", "right": "\\)", "display": False},
                         {"left": "[", "right": "]", "display": True},  # Support OpenAI's format
                     ]
+                )
+                # Whenever the chat value changes, align the beginning of the newest
+                # assistant message to the top of the visible chat area.
+                chat.change(
+                    None,
+                    inputs=[],
+                    outputs=[],
+                    js=(
+                        "() => {\n"
+                        "  const app = document.querySelector('gradio-app');\n"
+                        "  const doc = (app && app.shadowRoot) ? app.shadowRoot : document;\n"
+                        "  const root = doc.getElementById('chat_interface');\n"
+                        "  if (!root) return;\n"
+                        "  const findScrollableAncestor = (el) => {\n"
+                        "    // Stable selection for the chat scroll container\n"
+                        "    const stable = root.querySelector(\"div.bubble-wrap[role='log'][aria-label='chatbot conversation']\");\n"
+                        "    if (stable) return stable;\n"
+                        "    const preferred = root.querySelector('.bubble-wrap') || root.querySelector('.wrapper');\n"
+                        "    if (preferred && preferred.scrollHeight > preferred.clientHeight) return preferred;\n"
+                        "    let node = el ? el.parentElement : null;\n"
+                        "    while (node && node !== root) {\n"
+                        "      const cs = getComputedStyle(node);\n"
+                        "      const scrollable = (cs.overflowY === 'auto' || cs.overflowY === 'scroll') && node.scrollHeight > node.clientHeight;\n"
+                        "      if (scrollable) return node;\n"
+                        "      node = node.parentElement;\n"
+                        "    }\n"
+                        "    return root;\n"
+                        "  };\n"
+                        "  const findTarget = () => {\n"
+                        "    const candidates = [\n"
+                        "      'div.bubble-wrap[role=\\'log\\'] div.message-wrap > div.message-row.bubble.bot-row:last-of-type',\n"
+                        "      'div.message-wrap > div.message-row.bubble.bot-row:last-of-type',\n"
+                        "      'div.svelte-1csv61q.latest .message-content',\n"
+                        "      'div.svelte-1csv61q.latest'\n"
+                        "    ];\n"
+                        "    for (const sel of candidates) {\n"
+                        "      const el = root.querySelector(sel);\n"
+                        "      if (el) return el;\n"
+                        "    }\n"
+                        "    const items = root.querySelectorAll('[role=\\'listitem\\'], li, .message');\n"
+                        "    return items && items.length ? items[items.length - 1] : null;\n"
+                        "  };\n"
+                        "  const relativeTop = (target, container) => {\n"
+                        "    let y = 0;\n"
+                        "    let n = target;\n"
+                        "    while (n && n !== container) { y += n.offsetTop || 0; n = n.offsetParent; }\n"
+                        "    return y;\n"
+                        "  };\n"
+                        "  const alignTop = () => {\n"
+                        "    const target = findTarget();\n"
+                        "    if (!target) return;\n"
+                        "    const container = findScrollableAncestor(target);\n"
+                        "    const top = relativeTop(target, container);\n"
+                        "    if (typeof container.scrollTo === 'function') { container.scrollTo({ top, behavior: 'auto' }); } else { container.scrollTop = top; }\n"
+                        "    if (typeof target.scrollIntoView === 'function') { target.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'auto' }); }\n"
+                        "  };\n"
+                        "  // Multiple attempts to override built-in autoscroll and layout reflows\n"
+                        "  let i = 0;\n"
+                        "  const tries = () => {\n"
+                        "    alignTop();\n"
+                        "    if (i++ < 8) requestAnimationFrame(tries);\n"
+                        "  };\n"
+                        "  requestAnimationFrame(tries);\n"
+                        "  setTimeout(alignTop, 60);\n"
+                        "  setTimeout(alignTop, 220);\n"
+                        "}"
+                    ),
                 )
                 status_display = gr.Markdown("", visible=False)
                 user_box = gr.Textbox(label="You", value="Please explain this paper to me.")
@@ -82,7 +170,7 @@ def build_ui():
 
             # ---- Per-model tabs ----
             with gr.Tab("o3"):
-                o3_view = gr.Chatbot(label="o3 Output", height=850, value=[], 
+                o3_view = gr.Chatbot(label="o3 Output", height=800, value=[], 
                                       latex_delimiters=[
                                           {"left": "$$", "right": "$$", "display": True},
                                           {"left": "$", "right": "$", "display": False},
@@ -92,7 +180,7 @@ def build_ui():
                                       ])
 
             with gr.Tab("Claude"):
-                claude_view = gr.Chatbot(label="Claude Output", height=850, value=[],
+                claude_view = gr.Chatbot(label="Claude Output", height=800, value=[],
                                         latex_delimiters=[
                                           {"left": "$$", "right": "$$", "display": True},
                                           {"left": "$", "right": "$", "display": False},
@@ -102,7 +190,7 @@ def build_ui():
                                         ])
 
             with gr.Tab("Gemini"):
-                gemini_view = gr.Chatbot(label="Gemini Output", height=850, value=[],
+                gemini_view = gr.Chatbot(label="Gemini Output", height=800, value=[],
                                        latex_delimiters=[
                                           {"left": "$$", "right": "$$", "display": True},
                                           {"left": "$", "right": "$", "display": False},
@@ -257,10 +345,70 @@ def build_ui():
                 
                 return _handler
 
-            click_event.then(
+            evt = click_event.then(
                 _make_process(btn.value),
                 inputs=state,
                 outputs=[chat, status_display, o3_view, claude_view, gemini_view],
+            )
+
+            # Also run a JS scroll fix after the server event completes
+            evt.then(
+                None,
+                inputs=None,
+                outputs=None,
+                js=(
+                    "() => {\n"
+                    "  const app = document.querySelector('gradio-app');\n"
+                    "  const doc = (app && app.shadowRoot) ? app.shadowRoot : document;\n"
+                    "  const root = doc.getElementById('chat_interface');\n"
+                    "  if (!root) return;\n"
+                    "  const findScrollableAncestor = (el) => {\n"
+                    "    const stable = root.querySelector(\"div[role='log'][aria-label='chatbot conversation']\");\n"
+                    "    if (stable) return stable;\n"
+                    "    let node = el ? el.parentElement : null;\n"
+                    "    while (node && node !== root) {\n"
+                    "      const cs = getComputedStyle(node);\n"
+                    "      const scrollable = (cs.overflowY === 'auto' || cs.overflowY === 'scroll') && node.scrollHeight > node.clientHeight;\n"
+                    "      if (scrollable) return node;\n"
+                    "      node = node.parentElement;\n"
+                    "    }\n"
+                    "    return root;\n"
+                    "  };\n"
+                    "  const findTarget = () => {\n"
+                    "    const candidates = [\n"
+                    "      'div.message.svelte-1csv61q.panel-full-width div.svelte-1csv61q.latest div.message-content span.md.svelte-7ddecg.chatbot.prose p',\n"
+                    "      'div.svelte-1csv61q.latest .message-content span.md.chatbot.prose p',\n"
+                    "      'div.svelte-1csv61q.latest .message-content',\n"
+                    "      'div.svelte-1csv61q.latest',\n"
+                    "      'div.message-row.bubble.bot-row.svelte-1csv61q:last-of-type',\n"
+                    "      '.bot-row:last-of-type'\n"
+                    "    ];\n"
+                    "    for (const sel of candidates) {\n"
+                    "      const el = root.querySelector(sel);\n"
+                    "      if (el) return el;\n"
+                    "    }\n"
+                    "    const items = root.querySelectorAll('[role=\\'listitem\\'], li, .message');\n"
+                    "    return items && items.length ? items[items.length - 1] : null;\n"
+                    "  };\n"
+                    "  const alignTop = () => {\n"
+                    "    const target = findTarget();\n"
+                    "    if (!target) return;\n"
+                    "    const container = findScrollableAncestor(target);\n"
+                    "    const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;\n"
+                    "    container.scrollTop = top;\n"
+                    "    if (typeof target.scrollIntoView === 'function') { target.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'auto' }); }\n"
+                    "  };\n"
+                    "  let i = 0;\n"
+                    "  const tries = () => {\n"
+                    "    alignTop();\n"
+                    "    if (i++ < 12) requestAnimationFrame(tries);\n"
+                    "  };\n"
+                    "  requestAnimationFrame(tries);\n"
+                    "  setTimeout(alignTop, 60);\n"
+                    "  setTimeout(alignTop, 220);\n"
+                    "  setTimeout(alignTop, 500);\n"
+                    "}"
+                ),
             )
 
     return demo

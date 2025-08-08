@@ -10,6 +10,9 @@ A local Gradio chat app for **personal use** that can, per user turn, send the s
 
 ## Frontend (Gradio)
 
+Four tabs: Chat, o3, Claude, and Gemini
+
+### Main tab: Chat
 * At top: **Select PDF** button (store path for session; do **not** copy or persist the file).
 * Chat area shows **user messages** and **final AI replies** (only).
 * Under input: fixed action buttons:
@@ -26,20 +29,23 @@ A local Gradio chat app for **personal use** that can, per user turn, send the s
     2. Re-process the **same user input as before** according to the button pressed.  
        *Example:* clicking **All** resends the prior user input to all proposers and aggregates their new replies.
 
+### Other tabs: last outputs of each LLM
+The other tabs show the last output of each LLM that is produced when directly queried for an answer (with the o3, Claude or Gemini button), or when asked for a proposal (with the All button for example). The Claude tab contains only the output that was produced in these cases, it does not show the output that Claude produced in the aggregator role.
+
 ### UI status messages (non-stream)
 
 * “Sending requests for proposals…” when dispatching proposer calls.
 * “Collecting replies…” while waiting for proposers.
 * “Aggregating replies, iteration *N*…” during each aggregator pass.
 
-### No Streaming
+## No Streaming
 
 * Never stream the output, just let it generate in one go.
 
 ## Data/State
 
 * **Official chat history** (persisted): only **user inputs** and **final replies** (either from a single LLM call or from the aggregator). Proposals and aggregator deliberations are not stored.
-* Save chats under `Chats/` (one file per session, e.g., timestamped JSON). The app only remembers **the selected PDF path** during the active session.
+* Save chats under `Chats/` (one file per session, timestamped filenames). The app only remembers **the selected PDF path** during the active session. Save chats in text format.
 
 ## Model Calls
 
@@ -142,5 +148,5 @@ ExampleExplanations.txt
 
 ## Minimal Logging
 
-* Write chat transcripts (user inputs + final replies) to `Chats/<session_id>.json`.
+* Write chat transcripts (user inputs + final replies) to `Chats/<session_id>.txt`.
 * Track per-turn timing (proposers total, aggregator per iteration) and the cost estimate counters.
