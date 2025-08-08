@@ -10,8 +10,26 @@ def _read(path: str) -> str:
         return f.read()
 
 
+# Cached read of ExampleExplanations.txt
+@lru_cache(maxsize=1)
+def _examples() -> str:
+    try:
+        return _read("ExampleExplanations.txt")
+    except FileNotFoundError:
+        # If the examples file is missing, return empty string to avoid errors
+        return ""
+
+
+def _with_examples(text: str) -> str:
+    """Replace the {examples} placeholder in prompts with the actual examples."""
+    examples = _examples()
+    if not examples:
+        return text
+    return text.replace("{examples}", examples)
+
+
 def proposer_system(model: str) -> str:
-    return _read(os.path.join("ProposerSystemPrompts", f"{model}.txt"))
+    return _with_examples(_read(os.path.join("ProposerSystemPrompts", f"{model}.txt")))
 
 
 def proposer_synthesis_prompt(model: str) -> str:
@@ -19,7 +37,7 @@ def proposer_synthesis_prompt(model: str) -> str:
 
 
 def aggregator_system() -> str:
-    return _read("AggregatorSystemPrompt.txt")
+    return _with_examples(_read("AggregatorSystemPrompt.txt"))
 
 
 def aggregator_user() -> str:

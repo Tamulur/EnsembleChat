@@ -115,12 +115,14 @@ A local Gradio chat app for **personal use** that can, per user turn, send the s
 AggregatorSystemPrompt.txt
 AggregatorUserPrompt.txt
 AggregatorForceReplyUserPrompt.txt
+ExampleExplanations.txt
 ```
 
 * All prompt files are **plain text** (no JSON schemas).
 * Proposer prompts: normal role behavior for answering based on PDF + chat context.
 * Synthesis prompts: instruct the proposer to revise/defend its answer given **all** proposals and the aggregator’s remarks.
 * Aggregator prompts: instruct to either **FINAL REPLY** or **REQUEST SYNTHESIS FROM PROPOSERS**, starting the output with the chosen sentinel line on the **first line**.
+* ExampleExplanations.txt contains examples of good explanations. All system prompts have a placeholder {examples} that should be replaced with the contents of ExampleExplanations.txt.
 
 ## History & Anonymity Rules
 
