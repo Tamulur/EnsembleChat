@@ -45,7 +45,7 @@ class LLMError(Exception):
 # File-upload caching so we only upload the PDF once per provider per session
 # ---------------------------------------------------------------------------
 _openai_file_cache: Dict[str, str] = {}
-_anthropic_file_cache: Dict[str, dict] = {}  # Changed to dict since we store content objects now
+_anthropic_file_cache: Dict[str, str] = {}  # Cache pdf_path -> file_id for Anthropic Files API
 _gemini_file_cache: Dict[str, object] = {}
 
 
@@ -205,30 +205,44 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
 
 
 async def _get_anthropic_file_content(pdf_path: str) -> dict:
-    """Get PDF content for Anthropic API (files are embedded directly, not uploaded separately)."""
+    """Upload PDF once via Anthropic Files API and return a document block that references the resulting file_id."""
     if anthropic is None:
         raise LLMError("anthropic package not installed")
-    if pdf_path in _anthropic_file_cache:
-        return _anthropic_file_cache[pdf_path]
 
-    # Read PDF file and encode as base64
-    with open(pdf_path, "rb") as f:
-        pdf_data = f.read()
-    
-    import base64
-    pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
-    
-    # Create document content block for modern Anthropic API
+    # Re-use cached file_id if we've already uploaded this PDF in the current session
+    if pdf_path in _anthropic_file_cache:
+        file_id = _anthropic_file_cache[pdf_path]
+    else:
+        # Initialise a client that has the required beta header so we can use the Files API
+        client = anthropic.AsyncAnthropic(
+            default_headers={"anthropic-beta": "files-api-2025-04-14"}
+        )
+        try:
+            # Upload via Files API (beta)
+            with open(pdf_path, "rb") as f:
+                file_obj = await client.beta.files.upload(
+                    file=(os.path.basename(pdf_path), f, "application/pdf")
+                )
+        except Exception as exc:
+            raise LLMError(f"Failed to upload PDF to Anthropic Files API: {exc}") from exc
+
+        # The returned object may be a dict or an SDK object – handle both.
+        file_id = getattr(file_obj, "id", None)
+        if file_id is None and isinstance(file_obj, dict):
+            file_id = file_obj.get("id")
+        if not file_id:
+            raise LLMError("Anthropic file upload did not return a file_id")
+
+        _anthropic_file_cache[pdf_path] = file_id
+
+    # Build the document content block that references the uploaded file
     document_content = {
         "type": "document",
         "source": {
-            "type": "base64",
-            "media_type": "application/pdf",
-            "data": pdf_base64
-        }
+            "type": "file",
+            "file_id": file_id,
+        },
     }
-    
-    _anthropic_file_cache[pdf_path] = document_content
     return document_content
 
 
@@ -236,7 +250,7 @@ async def _anthropic_call(messages: List[Dict[str, str]], pdf_path: Optional[str
     if anthropic is None:
         raise LLMError("anthropic package not installed")
 
-    client = anthropic.AsyncAnthropic()
+    client = anthropic.AsyncAnthropic(default_headers={"anthropic-beta": "files-api-2025-04-14"})
     
     # Separate system messages from other messages
     system_messages = []
