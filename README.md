@@ -1,6 +1,6 @@
 # Multi-LLM PDF Chat (Gradio)
 
-Chat with any PDF locally, querying LLms individually or let them work out a response among themselves.
+Chat with any PDF, querying LLMs individually or let them work out a response among themselves.
 
 <img width="1474" height="771" alt="ChatWindow" src="https://github.com/user-attachments/assets/2091d0c6-fefc-4b7b-959f-c469f02a642b" />
 
@@ -27,12 +27,3 @@ python app.py
 ```
 
 Open the Gradio URL, click Select PDF, choose a model button, and start chatting.
-
-
-## 🔍 How It Works (TL;DR)
-
-1. Single-model mode – the chosen model answers directly.
-2. Multi-model mode
-  - Proposer phase: each selected model drafts a reply.
-  - Aggregator phase: Claude Sonnet 4 decides to (i) deliver a FINAL reply or (ii) request a new synthesis round.
-  - Loops up to 5 times, then forces a final.
