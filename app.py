@@ -3,6 +3,8 @@ import os
 
 import gradio as gr
 import warnings
+from pathlib import Path
+from PIL import Image
 warnings.filterwarnings("ignore", category=UserWarning, message="You have not specified a value for the `type` parameter.*")
 
 from utils import CostTracker, save_chat, timestamp_id, BUDGET_LIMIT
@@ -11,6 +13,8 @@ from proposer import call_proposer, call_synthesis
 from aggregator import call_aggregator, first_non_empty_line, text_after_first_line, format_proposal_packet
 
 # Constants
+ICON_DIR = Path(__file__).parent / "Icons"
+
 BUTTONS = [
     "o3",
     "Claude",
@@ -18,6 +22,56 @@ BUTTONS = [
     "o3 & Claude",
     "All",
 ]
+
+# Mapping of button label to icon path
+ICON_MAP = {
+    "o3": str(ICON_DIR / "OpenAI.png"),
+    "Claude": str(ICON_DIR / "Claude.png"),
+    "Gemini": str(ICON_DIR / "Gemini.png"),
+    "o3 & Claude": str(ICON_DIR / "o3_claude.png"),
+    "All": str(ICON_DIR / "all.png"),
+}
+
+
+
+def _ensure_composite_icons():
+    """Create composite icons for multi-model buttons if they don't exist."""
+    try:
+        # o3 & Claude composite
+        oc_path = ICON_DIR / "o3_claude.png"
+        if not oc_path.exists():
+            base1 = Image.open(ICON_DIR / "OpenAI.png").convert("RGBA")
+            base2 = Image.open(ICON_DIR / "Claude.png").convert("RGBA")
+            h = max(base1.height, base2.height)
+            scale = h / max(base1.height, base2.height)
+            # Ensure same height by scaling
+            base1 = base1.resize((int(base1.width*scale), h))
+            base2 = base2.resize((int(base2.width*scale), h))
+            composite = Image.new("RGBA", (base1.width+base2.width+4, h), (0,0,0,0))
+            composite.paste(base1, (0,0), base1)
+            composite.paste(base2, (base1.width+4,0), base2)
+            composite.save(oc_path)
+        # All composite
+        all_path = ICON_DIR / "all.png"
+        if not all_path.exists():
+            imgs = [Image.open(ICON_DIR / n).convert("RGBA") for n in ["OpenAI.png","Claude.png","Gemini.png"]]
+            h = max(img.height for img in imgs)
+            resized = []
+            for img in imgs:
+                scale = h / img.height
+                resized.append(img.resize((int(img.width*scale), h)))
+            width = sum(img.width for img in resized) + 4*(len(resized)-1)
+            composite = Image.new("RGBA", (width, h), (0,0,0,0))
+            x=0
+            for img in resized:
+                composite.paste(img, (x,0), img)
+                x += img.width +4
+            composite.save(all_path)
+    except Exception as e:
+        print("[WARN] Could not create composite icons", e)
+
+
+_ENSURED_ICONS = _ensure_composite_icons()
 
 MULTI_BUTTON_MODELS = {
     "o3 & Claude": ["o3", "Claude"],
@@ -166,7 +220,7 @@ def build_ui():
                 user_box = gr.Textbox(label="You", value="Please explain this paper to me.")
 
                 with gr.Row():
-                    btns = [gr.Button(value=b) for b in BUTTONS]
+                    btns = [gr.Button(value=b, icon=ICON_MAP.get(b)) for b in BUTTONS]
 
             # ---- Per-model tabs ----
             with gr.Tab("o3"):
