@@ -12,6 +12,7 @@ Note: this is my experiment in vibe-coding. Don't expect everything to be air-ti
 - **Aggregator logic** – Claude Sonnet 4 coordinates proposer replies and may iterate up to five times before producing a final answer.
 - **Cost & timeout guardrails** – 120 s per request, exponential-back-off retries, and a \$5 session budget cap.
 - **Lean persistence** – only user inputs & final replies are stored (JSON under `Chats/`).
+- **Individual model tabs** – separate tabs for o3, Claude, and Gemini show their last outputs, including proposals that don't appear in the main chat.
 
 
 ## 🚀 Quick Start
