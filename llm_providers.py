@@ -317,7 +317,7 @@ async def _anthropic_call(messages: List[Dict[str, str]], pdf_path: Optional[str
     answer = next(
         (blk.text for blk in resp.content if blk.type == "text"), ""
     )
-    return answer, 0, 0
+    return answer, resp.usage.input_tokens, resp.usage.output_tokens
 
 
 
@@ -386,37 +386,11 @@ async def _gemini_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
         if not text:
             # fall back to str for safety
             text = str(resp)
-
         # Extract token usage from usage_metadata if available
-        prompt_tokens = 0
-        completion_tokens = 0
-        usage = getattr(resp, "usage_metadata", None)
-        if usage is not None:
-            if isinstance(usage, dict):
-                prompt_tokens = (
-                    usage.get("prompt_token_count")
-                    or usage.get("input_tokens")
-                    or 0
-                )
-                completion_tokens = (
-                    usage.get("candidates_token_count")
-                    or usage.get("candidate_token_count")
-                    or usage.get("output_tokens")
-                    or 0
-                )
-            else:
-                # usage may be an SDK object with attributes
-                prompt_tokens = (
-                    getattr(usage, "prompt_token_count", None)
-                    or getattr(usage, "input_tokens", 0)
-                )
-                completion_tokens = (
-                    getattr(usage, "candidates_token_count", None)
-                    or getattr(usage, "candidate_token_count", None)
-                    or getattr(usage, "output_tokens", 0)
-                )
-
-        return text, int(prompt_tokens or 0), int(completion_tokens or 0)
+        prompt_tokens = resp.usage_metadata.prompt_token_count
+        completion_tokens = resp.usage_metadata.candidates_token_count
+        
+        return text, prompt_tokens, completion_tokens
 
     text, prompt_tokens, completion_tokens = await asyncio.to_thread(_send_message)
     return text, prompt_tokens, completion_tokens
