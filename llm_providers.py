@@ -400,16 +400,23 @@ async def _gemini_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
 # Unified public helper with retry/backoff
 # ---------------------------------------------------------------------------
 
-async def _retry(func, retries: int = 5):
+async def _retry(func, retries: int = 5, context: str | None = None):
     delay = 1
     for attempt in range(retries):
         try:
             return await func()
         except Exception as e:
-            if attempt == retries - 1:
+            attempt_num = attempt + 1
+            is_last = attempt == retries - 1
+            if is_last:
+                prefix = f"[RETRY]{' ' + context if context else ''}"
+                print(f"{prefix} Attempt {attempt_num}/{retries} failed: {e}. No more retries.")
                 raise
-            await asyncio.sleep(delay)
-            delay *= 2
+            else:
+                prefix = f"[RETRY]{' ' + context if context else ''}"
+                print(f"{prefix} Attempt {attempt_num}/{retries} failed: {e}. Retrying in {delay}s...")
+                await asyncio.sleep(delay)
+                delay *= 2
 
 
 async def call_llm(
@@ -446,6 +453,6 @@ async def call_llm(
             raise ValueError(f"Unknown model label: {model_label}")
 
     try:
-        return await _retry(_inner, retries=retries)
+        return await _retry(_inner, retries=retries, context=f"model={model_label}")
     except Exception as e:
         raise LLMError(str(e))
