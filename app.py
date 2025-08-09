@@ -267,9 +267,6 @@ def build_ui():
                             gr.update(value=s.model_histories["Claude"]),
                             gr.update(value=s.model_histories["Gemini"]),
                         )
-                    # Status updates will be handled through progress tracking
-                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_updates()
-                    
                     # Retrieve last user message (just appended by _add_user_and_clear)
                     last_user = None
                     for entry in reversed(s.chat_history.entries()):
@@ -280,6 +277,9 @@ def build_ui():
                         yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_updates()
                         return
 
+                    # Status updates will be handled through progress tracking
+                    yield s.chat_history.as_display(), gr.update(value="**Status:** Sending user input...", visible=True), *_model_updates()
+                    
                     # Budget guard (rough, before making calls we estimate slight cost)
                     if s.cost_tracker.will_exceed_budget(0.05):
                         warn = "Budget exceeded ($5). Start a new session or change selection."
@@ -316,9 +316,6 @@ def build_ui():
                                     p_log = p_log[:120]
                                 print("[PROPOSAL]", m, p_log)
                                 s.model_histories[m].append(("", p))
-
-                            # Immediately update model tabs with the new proposals
-                            yield s.chat_history.as_display(), gr.update(value="**Status:** Aggregating replies…", visible=True), *_model_updates()
 
                             # Aggregator iterations
                             for iteration in range(1, 6):

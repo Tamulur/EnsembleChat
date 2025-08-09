@@ -331,12 +331,15 @@ def dicts_to_gemini_history(msgs: List[Dict[str, str]]) -> List[types.Content]:
         for m in msgs
     ]
 
-def _get_gemini_file_resource(pdf_path: str):
+async def _get_gemini_file_resource(pdf_path: str):
     if genai is None:
         raise LLMError("google-genai package not installed")
     if pdf_path in _gemini_file_cache:
         return _gemini_file_cache[pdf_path]
-    file_resource = _gemini_client.files.upload( file=pdf_path)
+    # google-genai SDK is synchronous; run upload off the event loop
+    def _upload():
+        return _gemini_client.files.upload(file=pdf_path)
+    file_resource = await asyncio.to_thread(_upload)
     _gemini_file_cache[pdf_path] = file_resource
     return file_resource
 
@@ -355,7 +358,7 @@ async def _gemini_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
     last_user_content = messages[-1]["content"]   # newest user prompt
     prior_history    = dicts_to_gemini_history(messages[:-1])  # everything before it
 
-    pdf = _get_gemini_file_resource(pdf_path)
+    pdf = await _get_gemini_file_resource(pdf_path)
     pdf_part = types.Part.from_uri(
         file_uri=pdf.uri,          # ← the URI returned by files.upload()
         mime_type=pdf.mime_type    # ← "application/pdf"
@@ -369,13 +372,18 @@ async def _gemini_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
         system_instruction=system_instruction,
         tools=[grounding_tool]
     )
-    chat = _gemini_client.chats.create(
+    # The chats.create and send_message methods are synchronous; run them in a thread
+    def _send_message():
+        chat = _gemini_client.chats.create(
             model=GEMINI_MODEL,
             config=config,
-            history=prior_history)
+            history=prior_history,
+        )
+        resp = chat.send_message(last_user_content)
+        return getattr(resp, "text", str(resp))
 
-    resp = chat.send_message(last_user_content)
-    return resp.text, 0, 0
+    text = await asyncio.to_thread(_send_message)
+    return text, 0, 0
 
 # ---------------------------------------------------------------------------
 # Unified public helper with retry/backoff
