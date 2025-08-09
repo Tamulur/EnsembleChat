@@ -241,8 +241,9 @@ async def _get_anthropic_file_content(pdf_path: str) -> dict:
         "type": "document",
         "source": {
             "type": "file",
-            "file_id": file_id,
+            "file_id": file_id
         },
+        "cache_control": {"type": "ephemeral"}
     }
     return document_content
 
@@ -386,7 +387,7 @@ async def _gemini_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
         if not text:
             # fall back to str for safety
             text = str(resp)
-        # Extract token usage from usage_metadata if available
+        # Extract token usage from usage_metadata
         prompt_tokens = resp.usage_metadata.prompt_token_count
         completion_tokens = resp.usage_metadata.candidates_token_count
         
