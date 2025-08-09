@@ -4,9 +4,10 @@ from datetime import datetime
 from typing import List, Dict
 
 PRICES_PER_1K_TOKENS = {
-    "o3": 0.005,         # $/1k tokens – dummy values, replace with real
-    "claude": 0.008,
-    "gemini": 0.006,
+    # Prices per 1k tokens; separate input vs output to allow asymmetric pricing
+    "o3": {"input": 0.002, "output": 0.008},
+    "claude": {"input": 0.003, "output": 0.015},
+    "gemini": {"input": 0.00125, "output": 0.01},
 }
 
 # Very rough character->token conversion multiplier if API usage info missing
@@ -26,23 +27,32 @@ class CostTracker:
         return max(1, len(text) // CHARS_PER_TOKEN)
 
     def add_usage(self, model: str, prompt_tokens: int, completion_tokens: int):
-        total_tokens = prompt_tokens + completion_tokens
-        price_per_1k = PRICES_PER_1K_TOKENS.get(model.lower())
-        if price_per_1k is None:
-            price_per_1k = 0.005  # fallback dummy
-        cost = (total_tokens / 1000) * price_per_1k
+        pricing = PRICES_PER_1K_TOKENS.get(model.lower())
+        if pricing is None or not isinstance(pricing, dict):
+            pricing = {"input": 0.005, "output": 0.005}  # fallback dummy
+
+        input_cost = (prompt_tokens / 1000) * pricing["input"]
+        output_cost = (completion_tokens / 1000) * pricing["output"]
+        cost = input_cost + output_cost
+
         self.total_cost += cost
         self.debug_info.append(
             {
                 "model": model,
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
+                "input_price_per_1k": pricing["input"],
+                "output_price_per_1k": pricing["output"],
+                "input_cost": input_cost,
+                "output_cost": output_cost,
                 "cost": cost,
                 "running_total": self.total_cost,
             }
         )
-        print("[COST] Model %s | prompt %d | completion %d | cost %.4f | total %.4f"
-              % (model, prompt_tokens, completion_tokens, cost, self.total_cost))
+        print(
+            "[COST] Model %s | prompt %d | completion %d | cost %.4f$ | total %.4f$"
+            % (model, prompt_tokens, completion_tokens, cost, self.total_cost)
+        )
 
     def will_exceed_budget(self, estimated_cost: float) -> bool:
         return (self.total_cost + estimated_cost) > BUDGET_LIMIT
