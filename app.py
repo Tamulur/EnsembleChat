@@ -33,46 +33,6 @@ ICON_MAP = {
 }
 
 
-
-def _ensure_composite_icons():
-    """Create composite icons for multi-model buttons if they don't exist."""
-    try:
-        # o3 & Claude composite
-        oc_path = ICON_DIR / "o3_claude.png"
-        if not oc_path.exists():
-            base1 = Image.open(ICON_DIR / "OpenAI.png").convert("RGBA")
-            base2 = Image.open(ICON_DIR / "Claude.png").convert("RGBA")
-            h = max(base1.height, base2.height)
-            scale = h / max(base1.height, base2.height)
-            # Ensure same height by scaling
-            base1 = base1.resize((int(base1.width*scale), h))
-            base2 = base2.resize((int(base2.width*scale), h))
-            composite = Image.new("RGBA", (base1.width+base2.width+4, h), (0,0,0,0))
-            composite.paste(base1, (0,0), base1)
-            composite.paste(base2, (base1.width+4,0), base2)
-            composite.save(oc_path)
-        # All composite
-        all_path = ICON_DIR / "all.png"
-        if not all_path.exists():
-            imgs = [Image.open(ICON_DIR / n).convert("RGBA") for n in ["OpenAI.png","Claude.png","Gemini.png"]]
-            h = max(img.height for img in imgs)
-            resized = []
-            for img in imgs:
-                scale = h / img.height
-                resized.append(img.resize((int(img.width*scale), h)))
-            width = sum(img.width for img in resized) + 4*(len(resized)-1)
-            composite = Image.new("RGBA", (width, h), (0,0,0,0))
-            x=0
-            for img in resized:
-                composite.paste(img, (x,0), img)
-                x += img.width +4
-            composite.save(all_path)
-    except Exception as e:
-        print("[WARN] Could not create composite icons", e)
-
-
-_ENSURED_ICONS = _ensure_composite_icons()
-
 MULTI_BUTTON_MODELS = {
     "o3 & Claude": ["o3", "Claude"],
     "All": ["o3", "Claude", "Gemini"],
@@ -224,7 +184,7 @@ def build_ui():
 
             # ---- Per-model tabs ----
             with gr.Tab("o3"):
-                o3_view = gr.Chatbot(label="o3 Output", height=800, value=[], 
+                o3_view = gr.Chatbot(label="o3 Output", height=800, value=[], autoscroll=False, elem_id="o3_view",
                                       latex_delimiters=[
                                           {"left": "$$", "right": "$$", "display": True},
                                           {"left": "$", "right": "$", "display": False},
@@ -234,7 +194,7 @@ def build_ui():
                                       ])
 
             with gr.Tab("Claude"):
-                claude_view = gr.Chatbot(label="Claude Output", height=800, value=[],
+                claude_view = gr.Chatbot(label="Claude Output", height=800, value=[], autoscroll=False, elem_id="claude_view",
                                         latex_delimiters=[
                                           {"left": "$$", "right": "$$", "display": True},
                                           {"left": "$", "right": "$", "display": False},
@@ -244,7 +204,7 @@ def build_ui():
                                         ])
 
             with gr.Tab("Gemini"):
-                gemini_view = gr.Chatbot(label="Gemini Output", height=800, value=[],
+                gemini_view = gr.Chatbot(label="Gemini Output", height=800, value=[], autoscroll=False, elem_id="gemini_view",
                                        latex_delimiters=[
                                           {"left": "$$", "right": "$$", "display": True},
                                           {"left": "$", "right": "$", "display": False},
@@ -350,7 +310,11 @@ def build_ui():
                             proposals = await asyncio.gather(*[proposer_task(m) for m in models])
                             # ---- DEBUG: log each proposer reply ----
                             for m, p in zip(models, proposals):
-                                print("[PROPOSAL]", m, "\n", p, "\n---\n")
+                                # Truncate and replace newlines for logging
+                                p_log = p.replace('\n', ' ')
+                                if len(p_log) > 120:
+                                    p_log = p_log[:120]
+                                print("[PROPOSAL]", m, p_log)
                                 s.model_histories[m].append(("", p))
 
                             # Immediately update model tabs with the new proposals
@@ -464,6 +428,63 @@ def build_ui():
                     "}"
                 ),
             )
+
+        # Preserve per-tab scroll position across tab switches
+        demo.load(
+            None,
+            inputs=None,
+            outputs=None,
+            js=(
+                "() => {\n"
+                "  const app = document.querySelector('gradio-app');\n"
+                "  const doc = (app && app.shadowRoot) ? app.shadowRoot : document;\n"
+                "  const scrollPositions = new Map();\n"
+                "  const ids = ['chat_interface', 'o3_view', 'claude_view', 'gemini_view'];\n"
+                "  const getEntries = () => {\n"
+                "    const out = [];\n"
+                "    for (const id of ids) {\n"
+                "      const host = doc.getElementById(id);\n"
+                "      if (!host) continue;\n"
+                "      const stable = host.querySelector(\"div.bubble-wrap[role='log'][aria-label='chatbot conversation']\");\n"
+                "      const container = stable || host.querySelector('.bubble-wrap') || host.querySelector('.wrapper') || host;\n"
+                "      out.push({ key: id, host, container });\n"
+                "    }\n"
+                "    return out;\n"
+                "  };\n"
+                "  const isVisible = (el) => {\n"
+                "    if (!el) return false;\n"
+                "    const panel = el.closest('[role=\\'tabpanel\\']') || el;\n"
+                "    return !!(panel && panel.offsetParent !== null);\n"
+                "  };\n"
+                "  const saveVisible = () => {\n"
+                "    for (const { key, host, container } of getEntries()) {\n"
+                "      if (isVisible(host)) { scrollPositions.set(key, container.scrollTop); }\n"
+                "    }\n"
+                "  };\n"
+                "  const restoreVisible = () => {\n"
+                "    for (const { key, host, container } of getEntries()) {\n"
+                "      if (isVisible(host) && scrollPositions.has(key)) { container.scrollTop = scrollPositions.get(key); }\n"
+                "    }\n"
+                "  };\n"
+                "  const onTabClick = (e) => {\n"
+                "    const btn = e.target && e.target.closest && e.target.closest('button[role=\\'tab\\']');\n"
+                "    if (!btn) return;\n"
+                "    saveVisible();\n"
+                "    requestAnimationFrame(restoreVisible);\n"
+                "    setTimeout(restoreVisible, 60);\n"
+                "    setTimeout(restoreVisible, 200);\n"
+                "  };\n"
+                "  doc.addEventListener('click', onTabClick, true);\n"
+                "  const observer = new MutationObserver(() => { restoreVisible(); });\n"
+                "  const startObserve = () => {\n"
+                "    const panels = doc.querySelectorAll('[role=\\'tabpanel\\']');\n"
+                "    panels.forEach(p => observer.observe(p, { attributes: true, attributeFilter: ['style', 'class', 'hidden'] }));\n"
+                "  };\n"
+                "  startObserve();\n"
+                "  restoreVisible();\n"
+                "}"
+            ),
+        )
 
     return demo
 
