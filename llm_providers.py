@@ -69,9 +69,9 @@ def print_messages(model_label: str, idx: int, role: str, content):
     else:
         rendered = str(content)
 
-    # Truncate to 120 characters for concise output
-    if len(rendered) > 120:
-        rendered = rendered[:117] + "..."
+    # Truncate to 100 characters for concise output
+    if len(rendered) > 100:
+        rendered = rendered[:97] + "..."
     rendered = rendered.replace('\n', ' ')
 
     print(f"Message to {model_label} [{idx}, {role}]: '{rendered}'")

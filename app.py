@@ -149,14 +149,6 @@ def build_ui():
             return s.chat_history.as_display(), "", s
 
 
-
-        # Status callback for updating status display
-        def update_status(message):
-            return gr.update(value=f"**Status:** {message}", visible=True)
-        
-        def clear_status():
-            return gr.update(value="", visible=False)
-
         # Attach handlers for each button (three-stage: instant update, status updates, then final processing)
         for btn in btns:
             # Stage 1: quick, add user message and clear textbox
@@ -187,9 +179,6 @@ def build_ui():
                         yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_updates()
                         return
 
-                    # Status updates will be handled through progress tracking
-                    yield s.chat_history.as_display(), gr.update(value="**Status:** Sending user input...", visible=True), *_model_updates()
-                    
                     # Budget guard (rough, before making calls we estimate slight cost)
                     if s.cost_tracker.will_exceed_budget(0.05):
                         warn = "Budget exceeded ($5). Start a new session or change selection."
@@ -210,20 +199,38 @@ def build_ui():
                             # Proposer phase (concurrent)
                             async def proposer_task(model):
                                 try:
-                                    return await call_proposer(model, last_user, s.chat_history.entries(), s.pdf_path,
+                                    # Return model name with result for easier tracking
+                                    result = await call_proposer(model, last_user, s.chat_history.entries(), s.pdf_path,
                                                                s.cost_tracker, retries=5)
+                                    return model, result
                                 except Exception as e:
                                     print("[ERROR] proposer", model, e)
-                                    return "(error)"
+                                    return model, "(error)"
 
-                            yield s.chat_history.as_display(), gr.update(value="**Status:** Collecting replies…", visible=True), *_model_updates()
-                            proposals = await asyncio.gather(*[proposer_task(m) for m in models])
+                            tasks = [proposer_task(m) for m in models]
+                            proposals_by_model = {}
+                            num_models = len(models)
+
+                            yield s.chat_history.as_display(), gr.update(
+                                value=f"**Status:** Collecting replies (0/{num_models})...", visible=True), *_model_updates()
+
+                            for i, future in enumerate(asyncio.as_completed(tasks)):
+                                model, proposal = await future
+                                proposals_by_model[model] = proposal
+
+                                # Update status message with progress
+                                status_msg = f"**Status:** Collecting replies ({i + 1}/{num_models})..."
+                                yield s.chat_history.as_display(), gr.update(value=status_msg,
+                                                                              visible=True), *_model_updates()
+
+                            # Re-order proposals to match original model list
+                            proposals = [proposals_by_model[m] for m in models]
                             # ---- DEBUG: log each proposer reply ----
                             for m, p in zip(models, proposals):
                                 # Truncate and replace newlines for logging
                                 p_log = p.replace('\n', ' ')
-                                if len(p_log) > 120:
-                                    p_log = p_log[:120]
+                                if len(p_log) > 100:
+                                    p_log = p_log[:97] + "..."
                                 print("[PROPOSAL]", m, p_log)
                                 s.model_histories[m].append(("", p))
 
