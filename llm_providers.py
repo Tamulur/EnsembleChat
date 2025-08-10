@@ -202,6 +202,9 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
                 "prompt_tokens": getattr(raw_usage, "input_tokens", getattr(raw_usage, "prompt_tokens", 0)),
                 "completion_tokens": getattr(raw_usage, "output_tokens", getattr(raw_usage, "completion_tokens", 0)),
             }
+    cached = usage_dict.get("cached_tokens", 0)
+    print("cached_tokens for o3:", cached)
+
     return text, usage_dict.get("prompt_tokens", 0), usage_dict.get("completion_tokens", 0)
 
 
