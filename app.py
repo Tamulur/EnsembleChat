@@ -112,14 +112,17 @@ def build_ui():
 
             # ---- Per-model tabs ----
             with gr.Tab("o3"):
+                o3_cost = gr.Markdown("**Cost so far:** $0.0000", elem_id="o3_cost")
                 o3_view = gr.Chatbot(label="o3 Output", height=800, value=[], autoscroll=False, elem_id="o3_view",
                                       latex_delimiters=LATEX_DELIMITERS)
 
             with gr.Tab("Claude"):
+                claude_cost = gr.Markdown("**Cost so far:** $0.0000", elem_id="claude_cost")
                 claude_view = gr.Chatbot(label="Claude Output", height=800, value=[], autoscroll=False, elem_id="claude_view",
                                         latex_delimiters=LATEX_DELIMITERS)
 
             with gr.Tab("Gemini"):
+                gemini_cost = gr.Markdown("**Cost so far:** $0.0000", elem_id="gemini_cost")
                 gemini_view = gr.Chatbot(label="Gemini Output", height=800, value=[], autoscroll=False, elem_id="gemini_view",
                                        latex_delimiters=LATEX_DELIMITERS)
 
@@ -162,11 +165,17 @@ def build_ui():
             # Stage 2: long-running processing with status updates
             def _make_process(lbl):
                 async def _handler(s: SessionState):
-                    # Helper to build update objects for each model tab
-                    def _model_updates():
+                    # Helpers to build update objects for each model tab
+                    def _cost_line(label: str) -> str:
+                        return f"**Cost so far:** ${s.cost_tracker.get_model_cost(label):.4f}"
+
+                    def _model_and_cost_updates():
                         return (
+                            gr.update(value=_cost_line("o3")),
                             gr.update(value=s.model_histories["o3"]),
+                            gr.update(value=_cost_line("Claude")),
                             gr.update(value=s.model_histories["Claude"]),
+                            gr.update(value=_cost_line("Gemini")),
                             gr.update(value=s.model_histories["Gemini"]),
                         )
                     # Retrieve last user message (just appended by _add_user_and_clear)
@@ -176,7 +185,7 @@ def build_ui():
                             last_user = entry["text"]
                             break
                     if last_user is None:
-                        yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_updates()
+                        yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates()
                         return
 
                     # Budget guard (rough, before making calls we estimate slight cost)
@@ -184,13 +193,13 @@ def build_ui():
                         warn = "Budget exceeded ($5). Start a new session or change selection."
                         disp = s.chat_history.as_display()
                         disp.append((None, warn))
-                        yield disp, gr.update(value="", visible=False)
+                        yield disp, gr.update(value="", visible=False), *_model_and_cost_updates()
                         return
 
                     if lbl in ["o3", "Claude", "Gemini"]:
-                        yield s.chat_history.as_display(), gr.update(value="**Status:** Waiting for " + lbl + "…", visible=True), *_model_updates()
+                        yield s.chat_history.as_display(), gr.update(value="**Status:** Waiting for " + lbl + "…", visible=True), *_model_and_cost_updates()
                         result = await _handle_single(lbl, last_user, s)
-                        yield result, gr.update(value="", visible=False), *_model_updates()
+                        yield result, gr.update(value="", visible=False), *_model_and_cost_updates()
                     else:
                         models = MULTI_BUTTON_MODELS[lbl]
                         
@@ -212,7 +221,7 @@ def build_ui():
                             num_models = len(models)
 
                             yield s.chat_history.as_display(), gr.update(
-                                value=f"**Status:** Collecting replies (0/{num_models})...", visible=True), *_model_updates()
+                                value=f"**Status:** Collecting replies (0/{num_models})...", visible=True), *_model_and_cost_updates()
 
                             for i, future in enumerate(asyncio.as_completed(tasks)):
                                 model, proposal = await future
@@ -221,7 +230,7 @@ def build_ui():
                                 # Update status message with progress
                                 status_msg = f"**Status:** Collecting replies ({i + 1}/{num_models})..."
                                 yield s.chat_history.as_display(), gr.update(value=status_msg,
-                                                                              visible=True), *_model_updates()
+                                                                              visible=True), *_model_and_cost_updates()
 
                             # Re-order proposals to match original model list
                             proposals = [proposals_by_model[m] for m in models]
@@ -236,7 +245,7 @@ def build_ui():
 
                             # Aggregator iterations
                             for iteration in range(1, 6):
-                                yield s.chat_history.as_display(), gr.update(value=f"**Status:** Aggregating replies, iteration {iteration}…", visible=True), *_model_updates()
+                                yield s.chat_history.as_display(), gr.update(value=f"**Status:** Aggregating replies, iteration {iteration}…", visible=True), *_model_and_cost_updates()
                                 
                                 agg_out = await call_aggregator(proposals, last_user, s.chat_history.entries(), s.pdf_path,
                                                                 s.cost_tracker, iteration)
@@ -246,7 +255,7 @@ def build_ui():
                                     final_reply = text_after_first_line(agg_out)
                                     s.chat_history.add_assistant(final_reply)
                                     save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
-                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_updates()
+                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates()
                                     return
                                 elif "request synthesis from proposers" in first and iteration < 5:
                                     # Send aggregator notes to proposers for new synthesis round
@@ -269,18 +278,45 @@ def build_ui():
                                     # Fallback treat entire aggregator output as final
                                     s.chat_history.add_assistant(agg_out)
                                     save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
-                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_updates()
+                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates()
                                     return
                         
-                        async for chat_display, status_update, o3_up, claude_up, gemini_up in status_generator():
-                            yield chat_display, status_update, o3_up, claude_up, gemini_up
+                        async for (
+                            chat_display,
+                            status_update,
+                            o3_cost_up,
+                            o3_up,
+                            claude_cost_up,
+                            claude_up,
+                            gemini_cost_up,
+                            gemini_up,
+                        ) in status_generator():
+                            yield (
+                                chat_display,
+                                status_update,
+                                o3_cost_up,
+                                o3_up,
+                                claude_cost_up,
+                                claude_up,
+                                gemini_cost_up,
+                                gemini_up,
+                            )
                 
                 return _handler
 
             evt = click_event.then(
                 _make_process(btn.value),
                 inputs=state,
-                outputs=[chat, status_display, o3_view, claude_view, gemini_view],
+                outputs=[
+                    chat,
+                    status_display,
+                    o3_cost,
+                    o3_view,
+                    claude_cost,
+                    claude_view,
+                    gemini_cost,
+                    gemini_view,
+                ],
             )
 
             # Also run a JS scroll fix after the server event completes

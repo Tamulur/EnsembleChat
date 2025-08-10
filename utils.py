@@ -21,13 +21,16 @@ class CostTracker:
 
     def __init__(self):
         self.total_cost = 0.0
+        # Track cumulative spend per model (keys are lowercased model labels)
+        self.model_costs = {"o3": 0.0, "claude": 0.0, "gemini": 0.0}
         self.debug_info: List[Dict] = []  # for console logging only
 
     def _estimate_tokens(self, text: str) -> int:
         return max(1, len(text) // CHARS_PER_TOKEN)
 
     def add_usage(self, model: str, prompt_tokens: int, completion_tokens: int):
-        pricing = PRICES_PER_1K_TOKENS.get(model.lower())
+        model_key = model.lower()
+        pricing = PRICES_PER_1K_TOKENS.get(model_key)
         if pricing is None or not isinstance(pricing, dict):
             pricing = {"input": 0.005, "output": 0.005}  # fallback dummy
 
@@ -36,6 +39,8 @@ class CostTracker:
         cost = input_cost + output_cost
 
         self.total_cost += cost
+        # Update per-model totals
+        self.model_costs[model_key] = self.model_costs.get(model_key, 0.0) + cost
         self.debug_info.append(
             {
                 "model": model,
@@ -62,6 +67,10 @@ class CostTracker:
             "total_cost": self.total_cost,
             "details": self.debug_info,
         }
+
+    def get_model_cost(self, model: str) -> float:
+        """Return cumulative cost for the given model label (case-insensitive)."""
+        return float(self.model_costs.get(model.lower(), 0.0))
 
 
 def ensure_chats_dir():
