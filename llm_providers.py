@@ -88,7 +88,7 @@ async def _get_openai_file_id(pdf_path: str) -> str:
     if pdf_path in _openai_file_cache:
         return _openai_file_cache[pdf_path]
 
-    resp = await _openai_client.files.create(file=open(pdf_path, "rb"), purpose="assistants")
+    resp = await _openai_client.files.create(file=open(pdf_path, "rb"), purpose="user_data")
     # `files.create` may return either a File object or a plain string ID depending on SDK version
     if isinstance(resp, str):
         file_id = resp
@@ -117,10 +117,13 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
     # Build the `input` payload for the Responses API
     input_payload: List[Dict] = []
     hasAppendedPDF = False
+    system_instructions = ""
     for idx, msg in enumerate(messages):
         role = msg.get("role")
         text_content = msg.get("content", "")
-
+        if role == "system":
+            system_instructions = text_content
+            continue
         print_messages("OpenAI", idx, role, text_content)
 
         # Each content entry must be a list of blocks
@@ -137,75 +140,66 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
         model=OPENAI_MODEL,
         tools=[{"type":"web_search"}],
         input=input_payload,
+        instructions=system_instructions,
+        prompt_cache_key="cache-demo-1",
         timeout=TIMEOUT,
     )
 
+    print("Full OpenAI response:", resp)
+    
     # -------------------------------
-    # Parse response
+    # Parse response (streamlined for Responses API)
     # -------------------------------
-    if isinstance(resp, str):
-        text = resp
-        print("OpenAI text from string:", text) # DEBUG
-        usage_dict = {}
-    else:
-        # ---------------- Extract text depending on schema ----------------
-        text = ""
-        # 1) Responses API (new): resp.output -> list of messages -> content blocks
-        if hasattr(resp, "output") and resp.output:
-            try:
-                # Iterate through all output items to find message content
-                # (resp.output[0] might be web search results, actual message could be later)
-                parts = []
-                for output_item in resp.output:
-                    # Look for items that have content blocks (actual messages)
-                    content_blocks = getattr(output_item, "content", [])
-                    if content_blocks:
-                        for block in content_blocks:
-                            block_text = getattr(block, "text", None)
-                            if block_text:
-                                parts.append(block_text)
-                text = "".join(parts)
-            except Exception as e:
-                print("[WARN] Failed to parse Response.output:", e)
-        # 2) Legacy chat/completions style with .choices
-        if not text and hasattr(resp, "choices") and resp.choices:
-            text = resp.choices[0].message.content
-        # 3) Fallback for dict representations
-        if not text and isinstance(resp, dict):
-            if "output" in resp and resp["output"]:
-                # Iterate through all output items to find content blocks
-                parts = []
-                for output_item in resp["output"]:
-                    if isinstance(output_item, dict) and "content" in output_item:
-                        blocks = output_item.get("content", [])
-                        for block in blocks:
-                            if isinstance(block, dict) and "text" in block:
-                                parts.append(block.get("text", ""))
-                text = "".join(parts)
-            elif "choices" in resp:
-                text = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
-        # 4) Ultimate fallback
-        if not text:
-            text = str(resp)
-            print("OpenAI text fallback str:", text)  # DEBUG
-        # ---------------- Normalize usage object ----------------
-        raw_usage = getattr(resp, "usage", None)
-        if raw_usage is None and isinstance(resp, dict):
-            raw_usage = resp.get("usage")
-        if raw_usage is None:
-            usage_dict = {}
-        elif isinstance(raw_usage, dict):
-            usage_dict = raw_usage
-        else:
-            # ResponseUsage or similar object from SDK
-            usage_dict = {
-                "prompt_tokens": getattr(raw_usage, "input_tokens", getattr(raw_usage, "prompt_tokens", 0)),
-                "completion_tokens": getattr(raw_usage, "output_tokens", getattr(raw_usage, "completion_tokens", 0)),
-            }
-    cached = usage_dict.get("cached_tokens", 0)
-    print("cached_tokens for o3:", cached)
+    text = ""
+    # Prefer Responses API shape: resp.output -> items -> content[].text
+    if hasattr(resp, "output") and resp.output:
+        try:
+            for output_item in resp.output:
+                content_blocks = getattr(output_item, "content", None)
+                if not content_blocks:
+                    continue
+                for block in content_blocks:
+                    block_text = getattr(block, "text", None)
+                    if block_text:
+                        text += block_text
+        except Exception as exc:
+            print("[WARN] Failed to read OpenAI Responses output:", exc)
 
-    return text, usage_dict.get("prompt_tokens", 0), usage_dict.get("completion_tokens", 0)
+    # Minimal legacy fallback for chat/completions
+    if not text and hasattr(resp, "choices") and getattr(resp, "choices"):
+        try:
+            text = resp.choices[0].message.content
+        except Exception:
+            text = ""
+
+    if not text:
+        text = str(resp)
+
+    # Usage tokens
+    prompt_tokens = 0
+    completion_tokens = 0
+    raw_usage = getattr(resp, "usage", None)
+    if raw_usage is not None:
+        prompt_tokens = getattr(raw_usage, "input_tokens", getattr(raw_usage, "prompt_tokens", 0)) or 0
+        completion_tokens = getattr(raw_usage, "output_tokens", getattr(raw_usage, "completion_tokens", 0)) or 0
+
+    # Log cached tokens (Responses API: usage.input_tokens_details.cached_tokens)
+    cached_tokens = -1
+    if raw_usage is not None:
+        if isinstance(raw_usage, dict):
+            cached_tokens = (
+                (raw_usage.get("input_tokens_details") or {}).get("cached_tokens", -1) or -1
+            )
+        else:
+            input_details = getattr(raw_usage, "input_tokens_details", None)
+            if input_details is not None:
+                cached_tokens = getattr(input_details, "cached_tokens", -1) or -1
+    if cached_tokens >= 0:
+        print("cached_tokens for o3:", cached_tokens)
+    else:
+        print("information about cached_tokens was not available for o3")
+
+    return text, prompt_tokens, completion_tokens
 
 
 async def _get_anthropic_file_content(pdf_path: str) -> dict:
