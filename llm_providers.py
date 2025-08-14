@@ -45,6 +45,8 @@ class LLMError(Exception):
 # File-upload caching so we only upload the PDF once per provider per session
 # ---------------------------------------------------------------------------
 _openai_file_cache: Dict[str, str] = {}
+# Cache pdf_path -> vector_store_id so we only build the index once per session
+_openai_vector_store_cache: Dict[str, str] = {}
 _anthropic_file_cache: Dict[str, str] = {}  # Cache pdf_path -> file_id for Anthropic Files API
 _gemini_file_cache: Dict[str, object] = {}
 
@@ -101,22 +103,56 @@ async def _get_openai_file_id(pdf_path: str) -> str:
     return file_id
 
 
+async def _get_openai_vector_store_id(pdf_path: str) -> str:
+    """Create (once) a vector store for the given PDF and return its id.
+
+    Uses OpenAI File Search (Vector Stores). Uploads the local PDF directly into
+    the vector store and waits for indexing to complete.
+    """
+    if _openai_client is None:
+        raise LLMError("openai package not installed or AsyncOpenAI not available")
+    if not os.path.isfile(pdf_path):
+        raise LLMError(f"PDF not found: {pdf_path}")
+
+    if pdf_path in _openai_vector_store_cache:
+        return _openai_vector_store_cache[pdf_path]
+
+    try:
+        # Create a new vector store
+        vs = await _openai_client.vector_stores.create(
+            name=f"EnsembleChat:{os.path.basename(pdf_path)}"
+        )
+        vector_store_id = getattr(vs, "id", None) or (vs.get("id") if isinstance(vs, dict) else None)
+        if not vector_store_id:
+            raise LLMError("Failed to create OpenAI vector store (missing id)")
+
+        # Upload the file and wait for indexing to complete
+        # The SDK supports uploading file-like objects directly
+        with open(pdf_path, "rb") as f:
+            await _openai_client.vector_stores.file_batches.upload_and_poll(
+                vector_store_id=vector_store_id,
+                files=[f],
+            )
+
+        _openai_vector_store_cache[pdf_path] = vector_store_id
+        return vector_store_id
+    except Exception as exc:
+        raise LLMError(f"Failed to prepare OpenAI vector store: {exc}") from exc
+
+
 async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) -> Tuple[str, int, int]:
     """Call the OpenAI Responses API (v1+ SDK) with optional PDF attachment."""
     if _openai_client is None:
         raise LLMError("openai package not installed or AsyncOpenAI not available")
 
-    file_id: Optional[str] = None
+    vector_store_id: Optional[str] = None
     if pdf_path:
-        file_id = await _get_openai_file_id(pdf_path)
+        vector_store_id = await _get_openai_vector_store_id(pdf_path)
     else:
-        print("No PDF path provided") # DEBUG
-    if not file_id:
-        print("Not using OpenAI file_id") # DEBUG
+        print("No PDF path provided")  # DEBUG
 
     # Build the `input` payload for the Responses API
     input_payload: List[Dict] = []
-    hasAppendedPDF = False
     system_instructions = ""
     for idx, msg in enumerate(messages):
         role = msg.get("role")
@@ -130,20 +166,25 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
         # Use correct content type based on role: "output_text" for assistant, "input_text" for others
         content_type = "output_text" if role == "assistant" else "input_text"
         content_blocks = [{"type": content_type, "text": text_content}]
-        # Attach the PDF to the first user message only
-        if file_id and role == "user" and not hasAppendedPDF:
-            content_blocks.insert(0, {"type": "input_file", "file_id": file_id})
-            hasAppendedPDF = True
 
         input_payload.append({"role": role, "content": content_blocks})
-    resp = await _openai_client.responses.create(
-        model=OPENAI_MODEL,
-        tools=[{"type":"web_search"}],
-        input=input_payload,
-        instructions=system_instructions,
-        prompt_cache_key="cache-demo-1",
-        timeout=TIMEOUT,
-    )
+
+    # Enable web search and file search tools; attach the vector store if present
+    tools = [{"type": "web_search"}]
+    if vector_store_id:
+        tools.insert(0, {"type": "file_search",
+        "vector_store_ids": [vector_store_id]})
+
+    create_kwargs = {
+        "model": OPENAI_MODEL,
+        "tools": tools,
+        "input": input_payload,
+        "instructions": system_instructions,
+        "prompt_cache_key": "cache-demo-1",
+        "timeout": TIMEOUT,
+    }
+
+    resp = await _openai_client.responses.create(**create_kwargs)
 
     print("Full OpenAI response:", resp)
     
