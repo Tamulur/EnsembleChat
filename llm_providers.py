@@ -186,7 +186,7 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
 
     resp = await _openai_client.responses.create(**create_kwargs)
 
-    print("Full OpenAI response:", resp)
+    # print("Full OpenAI response:", resp)
     
     # -------------------------------
     # Parse response (streamlined for Responses API)
@@ -281,7 +281,7 @@ async def _get_anthropic_file_content(pdf_path: str) -> dict:
             "type": "file",
             "file_id": file_id
         },
-        "cache_control": {"type": "ephemeral"}
+        "cache_control": {"type": "ephemeral", "ttl": "1h"}
     }
     return document_content
 

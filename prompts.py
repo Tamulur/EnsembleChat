@@ -23,9 +23,7 @@ def _examples() -> str:
 def _with_examples(text: str) -> str:
     """Replace the {examples} placeholder in prompts with the actual examples."""
     examples = _examples()
-    if not examples:
-        return text
-    return text.replace("{examples}", examples)
+    return text.replace("{examples}", examples if examples else "")
 
 
 def proposer_system(model: str) -> str:
