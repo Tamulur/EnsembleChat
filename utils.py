@@ -5,7 +5,7 @@ from typing import List, Dict
 
 PRICES_PER_1K_TOKENS = {
     # Prices per 1k tokens; separate input vs output to allow asymmetric pricing
-    "o3": {"input": 0.002, "output": 0.008},
+    "chatgpt": {"input": 0.002, "output": 0.008},
     "claude": {"input": 0.003, "output": 0.015},
     "gemini": {"input": 0.00125, "output": 0.01},
 }
@@ -22,7 +22,7 @@ class CostTracker:
     def __init__(self):
         self.total_cost = 0.0
         # Track cumulative spend per model (keys are lowercased model labels)
-        self.model_costs = {"o3": 0.0, "claude": 0.0, "gemini": 0.0}
+        self.model_costs = {"chatgpt": 0.0, "claude": 0.0, "gemini": 0.0}
         self.debug_info: List[Dict] = []  # for console logging only
 
     def _estimate_tokens(self, text: str) -> int:

@@ -4,24 +4,24 @@
 
 A local Gradio chat app for **personal use** that can, per user turn, send the same question (plus chat history and the selected PDF) to multiple LLMs (“proposers”), then pass their proposals to an **aggregator** LLM that either (a) issues the final reply or (b) requests a re-synthesis round from the proposers. Final replies (only) are added to the official chat history.
 
-* **Proposer models:** OpenAI o3, Claude Sonnet 4, Gemini 2.5 Pro (fixed set).
+* **Proposer models:** OpenAI ChatGPT, Claude Sonnet 4, Gemini 2.5 Pro (fixed set).
 * **Aggregator model:** Claude Sonnet 4 (fixed).
 * **One PDF per session**, always attached to every model call using each provider’s native PDF/file integration. No local parsing/OCR; assume normal-length arXiv-style PDFs.
 
 ## Frontend (Gradio)
 
-Five tabs: Chat, o3, Claude, Gemini, and Resubmissions.
+Five tabs: Chat, ChatGPT, Claude, Gemini, and Resubmissions.
 
 ### Main tab: Chat
 * At top: **Select PDF** button (store path for session; do **not** copy or persist the file).
 * Chat area shows **user messages** and **final AI replies** (only).
 * Under input: fixed action buttons:
 
-  1. **o3**
+  1. **ChatGPT**
   2. **Claude**
   3. **Gemini**
-  4. **o3 & Claude**
-  5. **All** (o3 + Claude + Gemini)
+  4. **ChatGPT & Claude**
+  5. **All** (ChatGPT + Claude + Gemini)
      These map to either single-LLM mode (no aggregation) or proposer+aggregator mode.
 
   * **Redo last reply:** If the most recent LLM response is unsatisfactory, leave the input box empty and click any action button. The application will
@@ -30,7 +30,7 @@ Five tabs: Chat, o3, Claude, Gemini, and Resubmissions.
        *Example:* clicking **All** resends the prior user input to all proposers and aggregates their new replies.
 
 ### Model tabs: last outputs of each LLM
-The next three tabs show the last output of each LLM that is produced when directly queried for an answer (with the o3, Claude or Gemini button), or when asked for a proposal (with the All button for example). The Claude tab contains only the output that was produced in these cases, it does not show the output that Claude produced in the aggregator role.
+The next three tabs show the last output of each LLM that is produced when directly queried for an answer (with the ChatGPT, Claude or Gemini button), or when asked for a proposal (with the All button for example). The Claude tab contains only the output that was produced in these cases, it does not show the output that Claude produced in the aggregator role.
 
 ### Resubmissions Tab
 The Resubmissions tab shows a chat window with a history of resubmission requests that the aggregator LLM sent so far. Every time the aggregator LLM decides that because something is off, it needs to ask the other LLMs for another round of proposals (so for every iteration after the first) by sending """REQUEST SYNTHESIS FROM PROPOSERS""", the user prompt it sends (containing the proposals from the previous iteration and the remarks for each) is logged as a separate message entry into this tab's chat window.
@@ -60,12 +60,12 @@ The Resubmissions tab shows a chat window with a history of resubmission request
 * **Timeout per request:** 120 seconds.
 * **Retries (proposers only):** up to 5 on error (exponential backoff is fine). If still failing, **proceed with remaining proposals**.
 
-### Single-LLM mode (buttons: o3 / Claude / Gemini)
+### Single-LLM mode (buttons: ChatGPT / Claude / Gemini)
 
 * Send: model’s **system prompt** (from `ProposerSystemPrompts/<Model>.txt`), the **PDF**, full **chat history** (final replies only), and the **new user input** as the user message.
 * Display the model's reply and **add to history** as the final reply.
 
-### Multi-LLM mode (buttons: o3 & Claude / All)
+### Multi-LLM mode (buttons: ChatGPT & Claude / All)
 
 1. **Proposer phase**
 
@@ -112,12 +112,12 @@ The Resubmissions tab shows a chat window with a history of resubmission request
 
 ```
 /ProposerSystemPrompts/
-  o3.txt
+  ChatGPT.txt
   Claude.txt
   Gemini.txt
 
 /SynthesizeFromProposalsPrompts/
-  o3.txt
+  ChatGPT.txt
   Claude.txt
   Gemini.txt
 

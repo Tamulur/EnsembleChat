@@ -7,13 +7,13 @@ Chat with any PDF, querying LLMs individually or let them work out a response am
 _Note: this is my experiment in vibe-coding. Don't expect everything to be air-tight._
 
 ## ✨ Features
-- **Single or multi-model replies, decide per reply** – choose OpenAI o3, Claude Sonnet 4, Gemini 2.5 Pro, or an automatic aggregation of all three.
-- **One-click controls** – five fixed buttons (o3 · Claude · Gemini · o3 + Claude · All)
+- **Single or multi-model replies, decide per reply** – choose OpenAI ChatGPT, Claude Sonnet 4, Gemini 2.5 Pro, or an automatic aggregation of all three.
+- **One-click controls** – five fixed buttons (ChatGPT · Claude · Gemini · ChatGPT + Claude · All)
 - **Quick Redo** - Leave input field empty and click a button to redo the last response
 - **Aggregator logic** – Claude Sonnet 4 coordinates proposer replies and may iterate up to five times before producing a final answer.
 - **Cost & timeout guardrails** – 120 s per request, exponential-back-off retries, and a \$5 session budget cap.
 - **Lean persistence** – only user inputs & final replies are stored (`Chats/`).
-- **Individual model tabs** – separate tabs for o3, Claude, and Gemini show their last outputs, including proposals that don't appear in the main chat.
+- **Individual model tabs** – separate tabs for ChatGPT, Claude, and Gemini show their last outputs, including proposals that don't appear in the main chat.
 
 
 ## 🚀 Quick Start

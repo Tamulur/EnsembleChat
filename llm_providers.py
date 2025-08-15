@@ -30,7 +30,7 @@ except ImportError:  # pragma: no cover
     _gemini_client = None
 
 # Model identifiers (override with env vars / config as desired)
-OPENAI_MODEL = "o3" #"gpt-4.1"
+OPENAI_MODEL = "gpt-5" #"gpt-4.1"
 CLAUDE_MODEL = "claude-sonnet-4-0"
 GEMINI_MODEL = "gemini-2.5-pro"
 
@@ -186,7 +186,7 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
 
     resp = await _openai_client.responses.create(**create_kwargs)
 
-    # print("Full OpenAI response:", resp)
+    print("Full OpenAI response:", resp)
     
     # -------------------------------
     # Parse response (streamlined for Responses API)
@@ -236,9 +236,9 @@ async def _openai_call(messages: List[Dict[str, str]], pdf_path: Optional[str]) 
             if input_details is not None:
                 cached_tokens = getattr(input_details, "cached_tokens", -1) or -1
     if cached_tokens >= 0:
-        print("cached_tokens for o3:", cached_tokens)
+        print("cached_tokens for OpenAI:", cached_tokens)
     else:
-        print("information about cached_tokens was not available for o3")
+        print("information about cached_tokens was not available for OpenAI")
 
     return text, prompt_tokens, completion_tokens
 
@@ -469,7 +469,7 @@ async def call_llm(
     Parameters
     ----------
     model_label : str
-        "o3", "claude", or "gemini" (case-insensitive).
+        "ChatGPT", "Claude", or "Gemini" (case-insensitive).
     messages : list
         OpenAI-style messages list.
     pdf_path : str | None
@@ -481,7 +481,7 @@ async def call_llm(
 
     async def _inner():
         ml = model_label.lower()
-        if ml == "o3":
+        if ml == "chatgpt":
             return await _openai_call(messages, pdf_path)
         elif ml == "claude":
             return await _anthropic_call(messages, pdf_path)

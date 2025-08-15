@@ -21,26 +21,26 @@ from aggregator import call_aggregator, first_non_empty_line, text_after_first_l
 ICON_DIR = Path(__file__).parent / "Icons"
 
 BUTTONS = [
-    "o3",
+    "ChatGPT",
     "Claude",
     "Gemini",
-    "o3 & Claude",
+    "ChatGPT & Claude",
     "All",
 ]
 
 # Mapping of button label to icon path
 ICON_MAP = {
-    "o3": str(ICON_DIR / "OpenAI.png"),
+    "ChatGPT": str(ICON_DIR / "OpenAI.png"),
     "Claude": str(ICON_DIR / "Claude.png"),
     "Gemini": str(ICON_DIR / "Gemini.png"),
-    "o3 & Claude": str(ICON_DIR / "o3_claude.png"),
+    "ChatGPT & Claude": str(ICON_DIR / "chatgpt_claude.png"),
     "All": str(ICON_DIR / "all.png"),
 }
 
 
 MULTI_BUTTON_MODELS = {
-    "o3 & Claude": ["o3", "Claude"],
-    "All": ["o3", "Claude", "Gemini"],
+    "ChatGPT & Claude": ["ChatGPT", "Claude"],
+    "All": ["ChatGPT", "Claude", "Gemini"],
 }
 
 # Shared LaTeX delimiters configuration for all Chatbot components
@@ -60,7 +60,7 @@ class SessionState:
         self.cost_tracker = CostTracker()
         self.chat_id = timestamp_id()
         # Per-model chat history for tabs
-        self.model_histories = {"o3": [], "Claude": [], "Gemini": []}
+        self.model_histories = {"ChatGPT": [], "Claude": [], "Gemini": []}
         # Resubmissions tab history (list of chatbot tuples)
         self.resubmissions_history = []
 
@@ -113,9 +113,9 @@ def build_ui():
                     btns = [gr.Button(value=b, icon=ICON_MAP.get(b)) for b in BUTTONS]
 
             # ---- Per-model tabs ----
-            with gr.Tab("o3"):
-                o3_cost = gr.Markdown("**Cost so far:** $0.0000", elem_id="o3_cost")
-                o3_view = gr.Chatbot(label="o3 Output", height=800, value=[], autoscroll=False, elem_id="o3_view",
+            with gr.Tab("ChatGPT"):
+                chatgpt_cost = gr.Markdown("**Cost so far:** $0.0000", elem_id="chatgpt_cost")
+                chatgpt_view = gr.Chatbot(label="ChatGPT Output", height=800, value=[], autoscroll=False, elem_id="chatgpt_view",
                                       latex_delimiters=LATEX_DELIMITERS)
 
             with gr.Tab("Claude"):
@@ -178,8 +178,8 @@ def build_ui():
 
                     def _model_and_cost_updates():
                         return (
-                            gr.update(value=_cost_line("o3")),
-                            gr.update(value=s.model_histories["o3"]),
+                            gr.update(value=_cost_line("ChatGPT")),
+                            gr.update(value=s.model_histories["ChatGPT"]),
                             gr.update(value=_cost_line("Claude")),
                             gr.update(value=s.model_histories["Claude"]),
                             gr.update(value=_cost_line("Gemini")),
@@ -204,7 +204,7 @@ def build_ui():
                         yield disp, gr.update(value="", visible=False), *_model_and_cost_updates()
                         return
 
-                    if lbl in ["o3", "Claude", "Gemini"]:
+                    if lbl in ["ChatGPT", "Claude", "Gemini"]:
                         yield s.chat_history.as_display(), gr.update(value="**Status:** Waiting for " + lbl + "…", visible=True), *_model_and_cost_updates()
                         result = await _handle_single(lbl, last_user, s)
                         yield result, gr.update(value="", visible=False), *_model_and_cost_updates()
@@ -294,8 +294,8 @@ def build_ui():
                         async for (
                             chat_display,
                             status_update,
-                            o3_cost_up,
-                            o3_up,
+                            chatgpt_cost_up,
+                            chatgpt_up,
                             claude_cost_up,
                             claude_up,
                             gemini_cost_up,
@@ -305,8 +305,8 @@ def build_ui():
                             yield (
                                 chat_display,
                                 status_update,
-                                o3_cost_up,
-                                o3_up,
+                                chatgpt_cost_up,
+                                chatgpt_up,
                                 claude_cost_up,
                                 claude_up,
                                 gemini_cost_up,
@@ -322,8 +322,8 @@ def build_ui():
                 outputs=[
                     chat,
                     status_display,
-                    o3_cost,
-                    o3_view,
+                    chatgpt_cost,
+                    chatgpt_view,
                     claude_cost,
                     claude_view,
                     gemini_cost,

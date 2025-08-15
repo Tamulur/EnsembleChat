@@ -127,7 +127,7 @@ JS_PRESERVE_TAB_SCROLL = """
   const app = document.querySelector('gradio-app');
   const doc = (app && app.shadowRoot) ? app.shadowRoot : document;
   const scrollPositions = new Map();
-  const ids = ['chat_interface', 'o3_view', 'claude_view', 'gemini_view'];
+  const ids = ['chat_interface', 'chatgpt_view', 'claude_view', 'gemini_view'];
   const getEntries = () => {
     const out = [];
     for (const id of ids) {

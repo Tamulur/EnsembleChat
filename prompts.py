@@ -27,11 +27,14 @@ def _with_examples(text: str) -> str:
 
 
 def proposer_system(model: str) -> str:
-    return _with_examples(_read(os.path.join("ProposerSystemPrompts", f"{model}.txt")))
+    # Normalize to file names (ChatGPT maps to its prompt file)
+    filename = f"{model}.txt"
+    return _with_examples(_read(os.path.join("ProposerSystemPrompts", filename)))
 
 
 def proposer_synthesis_prompt(model: str) -> str:
-    return _read(os.path.join("SynthesizeFromProposalsPrompts", f"{model}.txt"))
+    filename = f"{model}.txt"
+    return _read(os.path.join("SynthesizeFromProposalsPrompts", filename))
 
 
 def aggregator_system() -> str:
