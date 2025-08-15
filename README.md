@@ -2,7 +2,7 @@
 
 Chat with any PDF, querying LLMs individually or let them work out a response among themselves.
 
-<img width="1470" height="776" alt="Screenshot" src="https://github.com/user-attachments/assets/c48ce90b-c150-4839-9d5b-89a0ab78d2be" />
+<img width="1875" height="756" alt="Screenshot" src="https://github.com/user-attachments/assets/9f888619-a6b1-4636-9098-74e14735adbd" />
 
 _Note: this is my experiment in vibe-coding. Don't expect everything to be air-tight._
 
