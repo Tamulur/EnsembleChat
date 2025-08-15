@@ -21,6 +21,12 @@ CSS_GLOBAL = (
     "#chat_interface button[title*='delete' i] {\n"
     "  display: none !important;\n"
     "}\n"
+    "/* Per-button icon sizing: target the <img> inside each button by elem_id */\n"
+    "#btn_chatgpt .icon, #btn_chatgpt img { height: 22px !important; width: auto; }\n"
+    "#btn_claude .icon, #btn_claude img { height: 22px !important; width: auto; }\n"
+    "#btn_gemini .icon, #btn_gemini img { height: 22px !important; width: auto; }\n"
+    "#btn_chatgpt_claude .icon, #btn_chatgpt_claude img { height: 24px !important; width: auto; }\n"
+    "#btn_all .icon, #btn_all img { height: 25px !important; width: auto; }\n"
 )
 
 

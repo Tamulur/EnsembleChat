@@ -92,7 +92,7 @@ def build_ui():
                     pdf_input = gr.File(label="Select PDF", file_types=[".pdf"], type="filepath")
 
                 chat = gr.Chatbot(
-                    height=600,
+                    height=560,
                     elem_id="chat_interface",
                     autoscroll=False,
                     show_label=False,
@@ -110,7 +110,18 @@ def build_ui():
                 user_box = gr.Textbox(label="You", value="Please explain this paper to me.")
 
                 with gr.Row():
-                    btns = [gr.Button(value=b, icon=ICON_MAP.get(b)) for b in BUTTONS]
+                    # Assign stable CSS ids so each button icon can be styled individually via CSS
+                    BUTTON_ID_MAP = {
+                        "ChatGPT": "btn_chatgpt",
+                        "Claude": "btn_claude",
+                        "Gemini": "btn_gemini",
+                        "ChatGPT & Claude": "btn_chatgpt_claude",
+                        "All": "btn_all",
+                    }
+                    btns = [
+                        gr.Button(value=label, icon=ICON_MAP.get(label), elem_id=BUTTON_ID_MAP[label])
+                        for label in BUTTONS
+                    ]
 
             # ---- Per-model tabs ----
             with gr.Tab("ChatGPT"):
