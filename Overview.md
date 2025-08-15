@@ -10,7 +10,7 @@ A local Gradio chat app for **personal use** that can, per user turn, send the s
 
 ## Frontend (Gradio)
 
-Four tabs: Chat, o3, Claude, and Gemini
+Five tabs: Chat, o3, Claude, Gemini, and Resubmissions.
 
 ### Main tab: Chat
 * At top: **Select PDF** button (store path for session; do **not** copy or persist the file).
@@ -29,8 +29,11 @@ Four tabs: Chat, o3, Claude, and Gemini
     2. Re-process the **same user input as before** according to the button pressed.  
        *Example:* clicking **All** resends the prior user input to all proposers and aggregates their new replies.
 
-### Other tabs: last outputs of each LLM
-The other tabs show the last output of each LLM that is produced when directly queried for an answer (with the o3, Claude or Gemini button), or when asked for a proposal (with the All button for example). The Claude tab contains only the output that was produced in these cases, it does not show the output that Claude produced in the aggregator role.
+### Model tabs: last outputs of each LLM
+The next three tabs show the last output of each LLM that is produced when directly queried for an answer (with the o3, Claude or Gemini button), or when asked for a proposal (with the All button for example). The Claude tab contains only the output that was produced in these cases, it does not show the output that Claude produced in the aggregator role.
+
+### Resubmissions Tab
+The Resubmissions tab shows a chat window with a history of resubmission requests that the aggregator LLM sent so far. Every time the aggregator LLM decides that because something is off, it needs to ask the other LLMs for another round of proposals (so for every iteration after the first) by sending """REQUEST SYNTHESIS FROM PROPOSERS""", the user prompt it sends (containing the proposals from the previous iteration and the remarks for each) is logged as a separate message entry into this tab's chat window.
 
 ### UI status messages (non-stream)
 

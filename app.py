@@ -61,6 +61,8 @@ class SessionState:
         self.chat_id = timestamp_id()
         # Per-model chat history for tabs
         self.model_histories = {"o3": [], "Claude": [], "Gemini": []}
+        # Resubmissions tab history (list of chatbot tuples)
+        self.resubmissions_history = []
 
 
 async def _handle_single(model_label: str, user_input: str, state: SessionState):
@@ -126,6 +128,11 @@ def build_ui():
                 gemini_view = gr.Chatbot(label="Gemini Output", height=800, value=[], autoscroll=False, elem_id="gemini_view",
                                        latex_delimiters=LATEX_DELIMITERS)
 
+            # ---- Resubmissions tab ----
+            with gr.Tab("Resubmissions"):
+                resub_view = gr.Chatbot(label="Resubmissions", height=800, value=[], autoscroll=False, elem_id="resub_view",
+                                        latex_delimiters=LATEX_DELIMITERS)
+
         # Update pdf path
         def _set_pdf(file, s: SessionState):
             if file is not None:
@@ -177,6 +184,7 @@ def build_ui():
                             gr.update(value=s.model_histories["Claude"]),
                             gr.update(value=_cost_line("Gemini")),
                             gr.update(value=s.model_histories["Gemini"]),
+                            gr.update(value=s.resubmissions_history),
                         )
                     # Retrieve last user message (just appended by _add_user_and_clear)
                     last_user = None
@@ -260,6 +268,8 @@ def build_ui():
                                 elif "request synthesis from proposers" in first and iteration < 5:
                                     # Send aggregator notes to proposers for new synthesis round
                                     aggregator_notes = text_after_first_line(agg_out)
+                                    # Log resubmission prompt (packet with proposals + remarks) into Resubmissions tab
+                                    s.resubmissions_history.append(("", aggregator_notes))
                                     async def synth_task(model):
                                         try:
                                             return await call_synthesis(model, last_user, s.chat_history.entries(), s.pdf_path,
@@ -290,6 +300,7 @@ def build_ui():
                             claude_up,
                             gemini_cost_up,
                             gemini_up,
+                            resub_up,
                         ) in status_generator():
                             yield (
                                 chat_display,
@@ -300,6 +311,7 @@ def build_ui():
                                 claude_up,
                                 gemini_cost_up,
                                 gemini_up,
+                                resub_up,
                             )
                 
                 return _handler
@@ -316,6 +328,7 @@ def build_ui():
                     claude_view,
                     gemini_cost,
                     gemini_view,
+                    resub_view,
                 ],
             )
 
