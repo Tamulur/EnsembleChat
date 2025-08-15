@@ -26,7 +26,7 @@ CSS_GLOBAL = (
     "#btn_claude .icon, #btn_claude img { height: 22px !important; width: auto; }\n"
     "#btn_gemini .icon, #btn_gemini img { height: 22px !important; width: auto; }\n"
     "#btn_chatgpt_claude .icon, #btn_chatgpt_claude img { height: 24px !important; width: auto; }\n"
-    "#btn_all .icon, #btn_all img { height: 25px !important; width: auto; }\n"
+    "#btn_all .icon, #btn_all img { height: 25px !important; width: auto; position: relative; top: -2.5px; }\n"
 )
 
 
