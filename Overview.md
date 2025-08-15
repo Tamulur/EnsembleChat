@@ -10,7 +10,7 @@ A local Gradio chat app for **personal use** that can, per user turn, send the s
 
 ## Frontend (Gradio)
 
-Five tabs: Chat, ChatGPT, Claude, Gemini, and Resubmissions.
+Six tabs: Chat, ChatGPT, Claude, Gemini, Resubmissions, and Settings.
 
 ### Main tab: Chat
 * At top: **Select PDF** button (store path for session; do **not** copy or persist the file).
@@ -34,6 +34,10 @@ The next three tabs show the last output of each LLM that is produced when direc
 
 ### Resubmissions Tab
 The Resubmissions tab shows a chat window with a history of resubmission requests that the aggregator LLM sent so far. Every time the aggregator LLM decides that because something is off, it needs to ask the other LLMs for another round of proposals (so for every iteration after the first) by sending """REQUEST SYNTHESIS FROM PROPOSERS""", the user prompt it sends (containing the proposals from the previous iteration and the remarks for each) is logged as a separate message entry into this tab's chat window.
+
+### Settings Tab
+In the Settings tab the user can select which model to use for each provider: For each provider, there is a dropdown with possible models. The model selected here will be used for the respective provider. For OpenAI the selection should be one of "GPT-5", "o3", and "GPT-4.1". For Claude the selection should be one of "claude-sonnet-4-0". For Gemini the selection should be one of "gemini-2.5-pro". Currently the dropboxes for Claude and Gemini only have one possible option each.
+
 
 ### UI status messages (non-stream)
 

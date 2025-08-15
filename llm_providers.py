@@ -30,7 +30,7 @@ except ImportError:  # pragma: no cover
     _gemini_client = None
 
 # Model identifiers (override with env vars / config as desired)
-OPENAI_MODEL = "gpt-5" #"gpt-4.1"
+OPENAI_MODEL = "gpt-5" # default; can be updated at runtime via set_openai_model
 CLAUDE_MODEL = "claude-sonnet-4-0"
 GEMINI_MODEL = "gemini-2.5-pro"
 
@@ -39,6 +39,53 @@ TIMEOUT = 180  # seconds
 
 class LLMError(Exception):
     """Raised when an LLM provider call fails."""
+
+
+# Runtime configuration helpers
+_OPENAI_MODEL_ALIASES = {
+    # UI labels → API model ids
+    "GPT-5": "gpt-5",
+    "o3": "o3",
+    "GPT-4.1": "gpt-4.1",
+}
+
+def set_openai_model(label_or_id: str) -> str:
+    """Update the OpenAI model used by the Responses API.
+
+    Accepts either a UI label (e.g. "GPT-5", "o3", "GPT-4.1") or a raw
+    model id. Returns the resolved model id that will be used.
+    """
+    global OPENAI_MODEL
+    resolved = _OPENAI_MODEL_ALIASES.get(label_or_id, label_or_id)
+    OPENAI_MODEL = resolved
+    print(f"[CONFIG] OpenAI model set to: {OPENAI_MODEL}")
+    return OPENAI_MODEL
+
+
+def set_claude_model(label_or_id: str) -> str:
+    """Update the Anthropic Claude model used by the provider layer.
+
+    Accepts either a UI label or a raw model id. Returns the resolved model id
+    that will be used.
+    """
+    global CLAUDE_MODEL
+    # For now, UI label equals id; keep passthrough for future aliasing
+    CLAUDE_MODEL = label_or_id
+    print(f"[CONFIG] Claude model set to: {CLAUDE_MODEL}")
+    return CLAUDE_MODEL
+
+
+def set_gemini_model(label_or_id: str) -> str:
+    """Update the Google Gemini model used by the provider layer.
+
+    Accepts either a UI label or a raw model id. Returns the resolved model id
+    that will be used.
+    """
+    global GEMINI_MODEL
+    # For now, UI label equals id; keep passthrough for future aliasing
+    GEMINI_MODEL = label_or_id
+    print(f"[CONFIG] Gemini model set to: {GEMINI_MODEL}")
+    return GEMINI_MODEL
 
 
 # ---------------------------------------------------------------------------

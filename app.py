@@ -16,6 +16,7 @@ from frontend_js import (
 from history import ChatHistory
 from proposer import call_proposer, call_synthesis
 from aggregator import call_aggregator, first_non_empty_line, text_after_first_line, format_proposal_packet
+from llm_providers import set_openai_model, set_claude_model, set_gemini_model
 
 # Constants
 ICON_DIR = Path(__file__).parent / "Icons"
@@ -63,6 +64,10 @@ class SessionState:
         self.model_histories = {"ChatGPT": [], "Claude": [], "Gemini": []}
         # Resubmissions tab history (list of chatbot tuples)
         self.resubmissions_history = []
+        # Settings
+        self.selected_openai_model = "GPT-5"
+        self.selected_claude_model = "claude-sonnet-4-0"
+        self.selected_gemini_model = "gemini-2.5-pro"
 
 
 async def _handle_single(model_label: str, user_input: str, state: SessionState):
@@ -144,6 +149,30 @@ def build_ui():
                 resub_view = gr.Chatbot(label="Resubmissions", height=800, value=[], autoscroll=False, elem_id="resub_view",
                                         latex_delimiters=LATEX_DELIMITERS)
 
+            # ---- Settings tab ----
+            with gr.Tab("Settings"):
+                with gr.Row():
+                    openai_model_dropdown = gr.Dropdown(
+                        choices=["GPT-5", "o3", "GPT-4.1"],
+                        value="GPT-5",
+                        label="OpenAI model",
+                        interactive=True,
+                    )
+                with gr.Row():
+                    claude_model_dropdown = gr.Dropdown(
+                        choices=["claude-sonnet-4-0"],
+                        value="claude-sonnet-4-0",
+                        label="Claude model",
+                        interactive=True,
+                    )
+                with gr.Row():
+                    gemini_model_dropdown = gr.Dropdown(
+                        choices=["gemini-2.5-pro"],
+                        value="gemini-2.5-pro",
+                        label="Gemini model",
+                        interactive=True,
+                    )
+
         # Update pdf path
         def _set_pdf(file, s: SessionState):
             if file is not None:
@@ -151,6 +180,29 @@ def build_ui():
             return s
 
         pdf_input.change(_set_pdf, inputs=[pdf_input, state], outputs=state)
+
+        # --- Settings handlers ---
+        def _set_openai_model(selection: str, s: SessionState):
+            s.selected_openai_model = selection
+            # Apply to provider layer immediately
+            set_openai_model(selection)
+            return s
+
+        openai_model_dropdown.change(_set_openai_model, inputs=[openai_model_dropdown, state], outputs=state)
+
+        def _set_claude_model(selection: str, s: SessionState):
+            s.selected_claude_model = selection
+            set_claude_model(selection)
+            return s
+
+        claude_model_dropdown.change(_set_claude_model, inputs=[claude_model_dropdown, state], outputs=state)
+
+        def _set_gemini_model(selection: str, s: SessionState):
+            s.selected_gemini_model = selection
+            set_gemini_model(selection)
+            return s
+
+        gemini_model_dropdown.change(_set_gemini_model, inputs=[gemini_model_dropdown, state], outputs=state)
 
         # --- User message handling ---
         def _add_user_and_clear(user_input: str, s: SessionState):
