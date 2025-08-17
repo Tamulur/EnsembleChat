@@ -93,7 +93,7 @@ async def call(messages: List[Dict[str, str]], pdf_path: Optional[str]) -> Tuple
 
     resp = await _openai_client.responses.create(**create_kwargs)
 
-    print("Full OpenAI response:", resp)
+    print(f"Full OpenAI response (MODEL_ID={MODEL_ID}):", resp)
 
     text = ""
     if hasattr(resp, "output") and resp.output:
