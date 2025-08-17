@@ -165,20 +165,39 @@ def build_ui():
                     ]
 
             # ---- Per-model tabs ----
+            MODEL_TAB_HEIGHT = 700
+
             with gr.Tab("ChatGPT"):
                 chatgpt_cost = gr.Markdown("**Cost so far:** $0.0000", elem_id="chatgpt_cost")
-                chatgpt_view = gr.Chatbot(label="ChatGPT Output", height=800, value=[], autoscroll=False, elem_id="chatgpt_view",
-                                      latex_delimiters=LATEX_DELIMITERS)
+                chatgpt_view = gr.Chatbot(
+                    label="ChatGPT Output",
+                    height=MODEL_TAB_HEIGHT,
+                    value=[],
+                    autoscroll=False,
+                    elem_id="chatgpt_view",
+                    latex_delimiters=LATEX_DELIMITERS
+                )
 
             with gr.Tab("Claude"):
                 claude_cost = gr.Markdown("**Cost so far:** $0.0000", elem_id="claude_cost")
-                claude_view = gr.Chatbot(label="Claude Output", height=800, value=[], autoscroll=False, elem_id="claude_view",
-                                        latex_delimiters=LATEX_DELIMITERS)
+                claude_view = gr.Chatbot(
+                    label="Claude Output",
+                    height=MODEL_TAB_HEIGHT,
+                    value=[],
+                    autoscroll=False,
+                    elem_id="claude_view",
+                    latex_delimiters=LATEX_DELIMITERS
+                )
 
             with gr.Tab("Gemini"):
                 gemini_cost = gr.Markdown("**Cost so far:** $0.0000", elem_id="gemini_cost")
-                gemini_view = gr.Chatbot(label="Gemini Output", height=800, value=[], autoscroll=False, elem_id="gemini_view",
-                                       latex_delimiters=LATEX_DELIMITERS)
+                gemini_view = gr.Chatbot(
+                    label="Gemini Output",
+                    height=MODEL_TAB_HEIGHT,
+                    value=[],
+                    autoscroll=False,
+                    elem_id="gemini_view",
+                    latex_delimiters=LATEX_DELIMITERS)
 
             # ---- Resubmissions tab ----
             with gr.Tab("Resubmissions"):
