@@ -36,7 +36,7 @@ The next three tabs show the last output of each LLM that is produced when direc
 The Resubmissions tab shows a chat window with a history of resubmission requests that the aggregator LLM sent so far. Every time the aggregator LLM decides that because something is off, it needs to ask the other LLMs for another round of proposals (so for every iteration after the first) by sending """REQUEST SYNTHESIS FROM PROPOSERS""", the user prompt it sends (containing the proposals from the previous iteration and the remarks for each) is logged as a separate message entry into this tab's chat window.
 
 ### Settings Tab
-In the Settings tab the user can select which model to use for each provider: For each provider, there is a dropdown with possible models. The model selected here will be used for the respective provider. For OpenAI the selection should be one of "GPT-5", "o3", and "GPT-4.1". For Claude the selection should be one of "claude-sonnet-4-0". For Gemini the selection should be one of "gemini-2.5-pro". Currently the dropboxes for Claude and Gemini only have one possible option each.
+In the Settings tab the user can select which model to use for each provider: For each provider, there is a dropdown with possible models. The model selected here will be used for the respective provider. Which models are available in the dropdowns for each provider is determined in the configuration files. In the folder "Configurations", there is a file for each provider: "OpenAI.json", "Claude.json" and "Gemini.json". Each configuration JSON file contains a field "models" that has a list of model names for that provider. For OpenAI the list should be "GPT-5", "GPT-5-mini", "o3", and "GPT-4.1". For Claude the list should be "claude-sonnet-4-0". For Gemini the list should be "gemini-2.5-pro". Currently the lists for Claude and Gemini only have one possible option each.
 
 
 ### UI status messages (non-stream)
@@ -61,7 +61,7 @@ In the Settings tab the user can select which model to use for each provider: Fo
 * Attach the **same PDF** to every request using each provider’s file APIs. Do not check sizes; assume typical research PDFs.
 * For models that support it, set the model to use web search automatically. For example, for OpenAI, use the Responses API to let it automatically use the web search tool.
 * Temperature: **0.7** for all calls. Other parameters at provider defaults.
-* **Timeout per request:** 120 seconds.
+* **Timeout per request:** 180 seconds.
 * **Retries (proposers only):** up to 5 on error (exponential backoff is fine). If still failing, **proceed with remaining proposals**.
 
 ### Single-LLM mode (buttons: ChatGPT / Claude / Gemini)

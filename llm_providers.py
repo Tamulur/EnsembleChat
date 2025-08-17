@@ -41,23 +41,14 @@ class LLMError(Exception):
     """Raised when an LLM provider call fails."""
 
 
-# Runtime configuration helpers
-_OPENAI_MODEL_ALIASES = {
-    # UI labels → API model ids
-    "GPT-5": "gpt-5",
-    "o3": "o3",
-    "GPT-4.1": "gpt-4.1",
-}
-
 def set_openai_model(label_or_id: str) -> str:
     """Update the OpenAI model used by the Responses API.
 
-    Accepts either a UI label (e.g. "GPT-5", "o3", "GPT-4.1") or a raw
-    model id. Returns the resolved model id that will be used.
+    The provided value must be the exact model id expected by the API.
+    Returns the model id that will be used.
     """
     global OPENAI_MODEL
-    resolved = _OPENAI_MODEL_ALIASES.get(label_or_id, label_or_id)
-    OPENAI_MODEL = resolved
+    OPENAI_MODEL = label_or_id
     print(f"[CONFIG] OpenAI model set to: {OPENAI_MODEL}")
     return OPENAI_MODEL
 

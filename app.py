@@ -1,5 +1,6 @@
 import asyncio
 import os
+import json
 
 import gradio as gr
 import warnings
@@ -39,6 +40,41 @@ ICON_MAP = {
 }
 
 
+# --- Configuration loading for model dropdowns ---
+CONFIG_DIR = Path(__file__).parent / "Configurations"
+
+DEFAULT_MODELS = {
+    "OpenAI": ["GPT-5", "GPT-5-mini", "o3", "GPT-4.1"],
+    "Claude": ["claude-sonnet-4-0"],
+    "Gemini": ["gemini-2.5-pro"],
+}
+
+
+def _read_models_from_file(filename: str, fallback: list[str]) -> list[str]:
+    cfg_path = CONFIG_DIR / filename
+    try:
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        models = data.get("models")
+        if isinstance(models, list) and all(isinstance(x, str) for x in models) and models:
+            return models
+        else:
+            print(f"[WARN] '{filename}' missing valid 'models' list. Using defaults.")
+    except Exception as e:
+        print(f"[WARN] Failed to read '{filename}': {e}. Using defaults.")
+    return fallback
+
+
+def load_model_configurations() -> dict[str, list[str]]:
+    return {
+        "OpenAI": _read_models_from_file("OpenAI.json", DEFAULT_MODELS["OpenAI"]),
+        "Claude": _read_models_from_file("Claude.json", DEFAULT_MODELS["Claude"]),
+        "Gemini": _read_models_from_file("Gemini.json", DEFAULT_MODELS["Gemini"]),
+    }
+
+
+MODEL_CONFIGS = load_model_configurations()
+
 MULTI_BUTTON_MODELS = {
     "ChatGPT & Claude": ["ChatGPT", "Claude"],
     "All": ["ChatGPT", "Claude", "Gemini"],
@@ -65,9 +101,9 @@ class SessionState:
         # Resubmissions tab history (list of chatbot tuples)
         self.resubmissions_history = []
         # Settings
-        self.selected_openai_model = "GPT-5"
-        self.selected_claude_model = "claude-sonnet-4-0"
-        self.selected_gemini_model = "gemini-2.5-pro"
+        self.selected_openai_model = MODEL_CONFIGS["OpenAI"][0]
+        self.selected_claude_model = MODEL_CONFIGS["Claude"][0]
+        self.selected_gemini_model = MODEL_CONFIGS["Gemini"][0]
 
 
 async def _handle_single(model_label: str, user_input: str, state: SessionState):
@@ -153,22 +189,22 @@ def build_ui():
             with gr.Tab("Settings"):
                 with gr.Row():
                     openai_model_dropdown = gr.Dropdown(
-                        choices=["GPT-5", "o3", "GPT-4.1"],
-                        value="GPT-5",
+                        choices=MODEL_CONFIGS["OpenAI"],
+                        value=MODEL_CONFIGS["OpenAI"][0],
                         label="OpenAI model",
                         interactive=True,
                     )
                 with gr.Row():
                     claude_model_dropdown = gr.Dropdown(
-                        choices=["claude-sonnet-4-0"],
-                        value="claude-sonnet-4-0",
+                        choices=MODEL_CONFIGS["Claude"],
+                        value=MODEL_CONFIGS["Claude"][0],
                         label="Claude model",
                         interactive=True,
                     )
                 with gr.Row():
                     gemini_model_dropdown = gr.Dropdown(
-                        choices=["gemini-2.5-pro"],
-                        value="gemini-2.5-pro",
+                        choices=MODEL_CONFIGS["Gemini"],
+                        value=MODEL_CONFIGS["Gemini"][0],
                         label="Gemini model",
                         interactive=True,
                     )
@@ -410,6 +446,15 @@ def build_ui():
             outputs=None,
             js=JS_PRESERVE_TAB_SCROLL,
         )
+
+        # Apply initial provider models from loaded configuration once UI is ready
+        def _apply_initial_models(s: SessionState):
+            set_openai_model(s.selected_openai_model)
+            set_claude_model(s.selected_claude_model)
+            set_gemini_model(s.selected_gemini_model)
+            return s
+
+        demo.load(_apply_initial_models, inputs=state, outputs=state)
 
     return demo
 
