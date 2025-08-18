@@ -141,11 +141,8 @@ def build_ui():
         with gr.Tabs() as tabs:
             # ---- Main Chat tab ----
             with gr.Tab("Chat"):
-                with gr.Row():
-                    pdf_input = gr.File(label="Select PDF", file_types=[".pdf"], type="filepath")
-
                 chat = gr.Chatbot(
-                    height=560,
+                    height=630,
                     elem_id="chat_interface",
                     autoscroll=False,
                     show_label=False,
@@ -211,6 +208,11 @@ def build_ui():
                     autoscroll=False,
                     elem_id="gemini_view",
                     latex_delimiters=LATEX_DELIMITERS)
+
+            # ---- Attachments tab ----
+            with gr.Tab("Attachments"):
+                with gr.Row():
+                    pdf_input = gr.File(label="Select PDF", file_types=[".pdf"], type="filepath")
 
             # ---- Resubmissions tab ----
             with gr.Tab("Resubmissions"):
