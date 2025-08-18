@@ -15,6 +15,9 @@ from frontend_js import (
     JS_PRESERVE_TAB_SCROLL,
     JS_NOTIFY_IF_FLAG,
     JS_PREPARE_NOTIFICATIONS,
+    JS_SELECT_TAB_ATTACHMENTS_ON_LOAD,
+    JS_SWITCH_TO_CHAT_TAB,
+    JS_SWITCH_TO_CHAT_TAB_IF_SIGNAL,
 )
 from history import ChatHistory
 from proposer import call_proposer, call_synthesis
@@ -210,7 +213,7 @@ def build_ui():
         state = gr.State(SessionState())
 
         # ---------- TABS LAYOUT ----------
-        with gr.Tabs() as tabs:
+        with gr.Tabs(selected=4) as tabs:
             # ---- Main Chat tab ----
             with gr.Tab("Chat"):
                 chat = gr.Chatbot(
@@ -285,6 +288,8 @@ def build_ui():
             with gr.Tab("Attachments"):
                 with gr.Row():
                     pdf_input = gr.File(label="Select PDF", file_types=[".pdf"], type="filepath")
+                # Hidden component to signal tab switch
+                tab_switch_signal = gr.Textbox(value="", visible=False)
 
             # ---- Resubmissions tab ----
             with gr.Tab("Resubmissions"):
@@ -341,9 +346,19 @@ def build_ui():
         def _set_pdf(file, s: SessionState):
             if file is not None:
                 s.pdf_path = file
-            return s
+                print(f"[DEBUG] PDF selected: {file}, sending switch_tab signal")
+                return s, "switch_tab"  # Signal to switch tab
+            print(f"[DEBUG] No PDF selected, file is: {file}")
+            return s, ""  # No signal if no file
 
-        pdf_input.change(_set_pdf, inputs=[pdf_input, state], outputs=state)
+        pdf_change_evt = pdf_input.change(_set_pdf, inputs=[pdf_input, state], outputs=[state, tab_switch_signal])
+        # After selecting a PDF, switch to the Chat tab only if a file was selected
+        tab_switch_signal.change(
+            None, 
+            inputs=[tab_switch_signal], 
+            outputs=None, 
+            js=JS_SWITCH_TO_CHAT_TAB_IF_SIGNAL
+        )
 
         # --- Settings handlers ---
         def _set_openai_model(selection: str, s: SessionState):
@@ -634,6 +649,14 @@ def build_ui():
                 outputs=None,
                 js=JS_NOTIFY_IF_FLAG,
             )
+
+        # On initial load, switch to the Attachments tab
+        demo.load(
+            None,
+            inputs=None,
+            outputs=None,
+            js=JS_SELECT_TAB_ATTACHMENTS_ON_LOAD,
+        )
 
         # Preserve per-tab scroll position across tab switches
         demo.load(

@@ -213,3 +213,86 @@ JS_PREPARE_NOTIFICATIONS = """
 """
 
 
+# Select the "Attachments" tab on initial page load
+JS_SELECT_TAB_ATTACHMENTS_ON_LOAD = """
+() => {
+  try {
+    const app = document.querySelector('gradio-app');
+    const doc = (app && app.shadowRoot) ? app.shadowRoot : document;
+    const clickAttachments = () => {
+      const tabs = Array.from(doc.querySelectorAll("button[role='tab']"));
+      const btn = tabs.find(b => (b.textContent || "").trim().toLowerCase() === 'attachments');
+      if (btn) { try { btn.click(); } catch (_) {} return true; }
+      return false;
+    };
+    let tries = 0;
+    const attempt = () => {
+      if (clickAttachments()) return;
+      if (tries++ < 15) setTimeout(attempt, 80);
+    };
+    // Defer to ensure tabs are mounted
+    setTimeout(attempt, 0);
+  } catch (_) {}
+}
+"""
+
+# Switch to the "Chat" tab after a PDF is selected
+JS_SWITCH_TO_CHAT_TAB = """
+() => {
+  try {
+    const app = document.querySelector('gradio-app');
+    const doc = (app && app.shadowRoot) ? app.shadowRoot : document;
+    const clickChat = () => {
+      const tabs = Array.from(doc.querySelectorAll("button[role='tab']"));
+      const btn = tabs.find(b => (b.textContent || "").trim().toLowerCase() === 'chat');
+      if (btn) { try { btn.click(); } catch (_) {} return true; }
+      return false;
+    };
+    let tries = 0;
+    const attempt = () => {
+      if (clickChat()) return;
+      if (tries++ < 15) setTimeout(attempt, 80);
+    };
+    // Small delay to ensure PDF processing completes
+    setTimeout(attempt, 100);
+  } catch (_) {}
+}
+"""
+
+# Conditional switch to Chat tab based on signal
+JS_SWITCH_TO_CHAT_TAB_IF_SIGNAL = """
+(signal) => {
+  try {
+    console.log("[DEBUG] Tab switch signal received:", signal);
+    if (signal === "switch_tab") {
+      console.log("[DEBUG] Switching to Chat tab...");
+      const app = document.querySelector('gradio-app');
+      const doc = (app && app.shadowRoot) ? app.shadowRoot : document;
+      const clickChat = () => {
+        const tabs = Array.from(doc.querySelectorAll("button[role='tab']"));
+        const btn = tabs.find(b => (b.textContent || "").trim().toLowerCase() === 'chat');
+        if (btn) { 
+          console.log("[DEBUG] Chat tab found, clicking...");
+          try { btn.click(); } catch (_) {} 
+          return true; 
+        }
+        console.log("[DEBUG] Chat tab not found");
+        return false;
+      };
+      let tries = 0;
+      const attempt = () => {
+        if (clickChat()) return;
+        if (tries++ < 15) setTimeout(attempt, 80);
+      };
+      // Small delay to ensure PDF processing completes
+      setTimeout(attempt, 100);
+    } else {
+      console.log("[DEBUG] Signal does not match 'switch_tab', ignoring");
+    }
+  } catch (e) {
+    console.error("[DEBUG] Error in tab switch:", e);
+  }
+}
+"""
+
+
