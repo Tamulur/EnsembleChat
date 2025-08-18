@@ -40,6 +40,7 @@ The Resubmissions tab shows a chat window with a history of resubmission request
 ### Settings Tab
 In the Settings tab the user can select which model to use for each provider: For each provider, there is a dropdown with possible models. The model selected here will be used for the respective provider. Which models are available in the dropdowns for each provider is determined in the configuration files. In the folder "Configurations", there is a file for each provider: "OpenAI.json", "Claude.json" and "Gemini.json". Each configuration JSON file contains a field "models" that has a list of model names for that provider. For OpenAI the list should be "GPT-5", "GPT-5-mini", "o3", and "GPT-4.1". For Claude the list should be "claude-sonnet-4-0". For Gemini the list should be "gemini-2.5-pro". Currently the lists for Claude and Gemini only have one possible option each. Another dropdown labelled "Aggregator" lets the user select one of the providers (ChatGPT, Claude, or Gemini) as the aggregator.
 There is a field to set the temperature that should be used for any models whose API allows this, default 0.7.
+There is a "Notifications" checkbox, that sets whether to show system notifications when the final reply has finished. Default it on.
 
 
 ### UI status messages
@@ -49,7 +50,7 @@ There is a field to set the temperature that should be used for any models whose
 * “Aggregating replies, iteration *N*…” during each aggregator pass.
 
 ### Notifications
-* Show a system notification "Reply complete" when the final reply is finished.
+* Show a system notification "Reply complete" when the final reply is finished and if the "Notifications" checkbox in the Settings tab is checked.
 
 ## No Streaming
 

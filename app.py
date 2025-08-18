@@ -108,6 +108,7 @@ class SessionState:
         self.selected_gemini_model = MODEL_CONFIGS["Gemini"][0]
         self.selected_aggregator = "Claude"
         self.temperature: float = 0.7
+        self.notifications_enabled: bool = True
 
 
 async def _handle_single(model_label: str, user_input: str, state: SessionState):
@@ -258,6 +259,12 @@ def build_ui():
                         label="Temperature",
                         interactive=True,
                     )
+                with gr.Row():
+                    notifications_checkbox = gr.Checkbox(
+                        value=True,
+                        label="Notifications",
+                        interactive=True,
+                    )
 
         # Update pdf path
         def _set_pdf(file, s: SessionState):
@@ -304,6 +311,12 @@ def build_ui():
             return s
 
         temperature_slider.change(_set_temperature, inputs=[temperature_slider, state], outputs=state)
+
+        def _set_notifications(enabled: bool, s: SessionState):
+            s.notifications_enabled = bool(enabled)
+            return s
+
+        notifications_checkbox.change(_set_notifications, inputs=[notifications_checkbox, state], outputs=state)
 
         # --- User message handling ---
         def _add_user_and_clear(user_input: str, s: SessionState):
@@ -371,7 +384,7 @@ def build_ui():
                     if lbl in ["ChatGPT", "Claude", "Gemini"]:
                         yield s.chat_history.as_display(), gr.update(value="**Status:** Waiting for " + lbl + "…", visible=True), *_model_and_cost_updates(), ""
                         result = await _handle_single(lbl, last_user, s)
-                        yield result, gr.update(value="", visible=False), *_model_and_cost_updates(), "done"
+                        yield result, gr.update(value="", visible=False), *_model_and_cost_updates(), ("done" if s.notifications_enabled else "")
                     else:
                         models = MULTI_BUTTON_MODELS[lbl]
                         
@@ -442,7 +455,7 @@ def build_ui():
                                     final_reply = text_after_first_line(agg_out)
                                     s.chat_history.add_assistant(final_reply)
                                     save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
-                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), "done"
+                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), ("done" if s.notifications_enabled else "")
                                     return
                                 elif "request synthesis from proposers" in first and iteration < 5:
                                     # Send aggregator notes to proposers for new synthesis round
@@ -475,7 +488,7 @@ def build_ui():
                                     # Fallback treat entire aggregator output as final
                                     s.chat_history.add_assistant(agg_out)
                                     save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
-                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), "done"
+                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), ("done" if s.notifications_enabled else "")
                                     return
                         
                         async for (
