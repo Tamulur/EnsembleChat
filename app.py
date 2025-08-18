@@ -91,6 +91,77 @@ LATEX_DELIMITERS = [
     {"left": "[", "right": "]", "display": True},  # Support OpenAI's format
 ]
 
+# --- Settings persistence (Settings.json) ---
+SETTINGS_FILE = Path(__file__).parent / "Settings.json"
+
+
+def _default_settings() -> dict:
+    return {
+        "openai_model": MODEL_CONFIGS["OpenAI"][0],
+        "claude_model": MODEL_CONFIGS["Claude"][0],
+        "gemini_model": MODEL_CONFIGS["Gemini"][0],
+        "aggregator": "Claude",
+        "temperature": 0.7,
+        "notifications": True,
+    }
+
+
+def _validate_and_merge_settings(raw: dict) -> dict:
+    defaults = _default_settings()
+    merged = dict(defaults)
+
+    try:
+        if isinstance(raw.get("openai_model"), str) and raw["openai_model"] in MODEL_CONFIGS["OpenAI"]:
+            merged["openai_model"] = raw["openai_model"]
+        if isinstance(raw.get("claude_model"), str) and raw["claude_model"] in MODEL_CONFIGS["Claude"]:
+            merged["claude_model"] = raw["claude_model"]
+        if isinstance(raw.get("gemini_model"), str) and raw["gemini_model"] in MODEL_CONFIGS["Gemini"]:
+            merged["gemini_model"] = raw["gemini_model"]
+        if isinstance(raw.get("aggregator"), str) and raw["aggregator"] in ["ChatGPT", "Claude", "Gemini"]:
+            merged["aggregator"] = raw["aggregator"]
+        temp = raw.get("temperature")
+        if isinstance(temp, (int, float)):
+            merged["temperature"] = max(0.0, min(1.0, float(temp)))
+        if isinstance(raw.get("notifications"), bool):
+            merged["notifications"] = raw["notifications"]
+    except Exception as e:
+        print("[WARN] Settings validation error:", e)
+
+    return merged
+
+
+def load_settings() -> dict:
+    defaults = _default_settings()
+    if SETTINGS_FILE.exists():
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            settings = _validate_and_merge_settings(raw if isinstance(raw, dict) else {})
+        except Exception as e:
+            print(f"[WARN] Failed to read Settings.json: {e}. Using defaults.")
+            settings = defaults
+    else:
+        settings = defaults
+    # Ensure file exists and is normalized
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+    except Exception as e:
+        print(f"[WARN] Failed to write Settings.json: {e}")
+    return settings
+
+
+def save_settings(settings: dict) -> None:
+    normalized = _validate_and_merge_settings(settings if isinstance(settings, dict) else {})
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(normalized, f, indent=2)
+    except Exception as e:
+        print(f"[WARN] Failed to save Settings.json: {e}")
+
+
+APP_SETTINGS = load_settings()
+
 
 class SessionState:
     def __init__(self):
@@ -103,12 +174,12 @@ class SessionState:
         # Resubmissions tab history (list of chatbot tuples)
         self.resubmissions_history = []
         # Settings
-        self.selected_openai_model = MODEL_CONFIGS["OpenAI"][0]
-        self.selected_claude_model = MODEL_CONFIGS["Claude"][0]
-        self.selected_gemini_model = MODEL_CONFIGS["Gemini"][0]
-        self.selected_aggregator = "Claude"
-        self.temperature: float = 0.7
-        self.notifications_enabled: bool = True
+        self.selected_openai_model = APP_SETTINGS.get("openai_model", MODEL_CONFIGS["OpenAI"][0])
+        self.selected_claude_model = APP_SETTINGS.get("claude_model", MODEL_CONFIGS["Claude"][0])
+        self.selected_gemini_model = APP_SETTINGS.get("gemini_model", MODEL_CONFIGS["Gemini"][0])
+        self.selected_aggregator = APP_SETTINGS.get("aggregator", "Claude")
+        self.temperature: float = float(APP_SETTINGS.get("temperature", 0.7))
+        self.notifications_enabled: bool = bool(APP_SETTINGS.get("notifications", True))
 
 
 async def _handle_single(model_label: str, user_input: str, state: SessionState):
@@ -225,28 +296,28 @@ def build_ui():
                 with gr.Row():
                     openai_model_dropdown = gr.Dropdown(
                         choices=MODEL_CONFIGS["OpenAI"],
-                        value=MODEL_CONFIGS["OpenAI"][0],
+                        value=(APP_SETTINGS.get("openai_model") if APP_SETTINGS.get("openai_model") in MODEL_CONFIGS["OpenAI"] else MODEL_CONFIGS["OpenAI"][0]),
                         label="OpenAI model",
                         interactive=True,
                     )
                 with gr.Row():
                     claude_model_dropdown = gr.Dropdown(
                         choices=MODEL_CONFIGS["Claude"],
-                        value=MODEL_CONFIGS["Claude"][0],
+                        value=(APP_SETTINGS.get("claude_model") if APP_SETTINGS.get("claude_model") in MODEL_CONFIGS["Claude"] else MODEL_CONFIGS["Claude"][0]),
                         label="Claude model",
                         interactive=True,
                     )
                 with gr.Row():
                     gemini_model_dropdown = gr.Dropdown(
                         choices=MODEL_CONFIGS["Gemini"],
-                        value=MODEL_CONFIGS["Gemini"][0],
+                        value=(APP_SETTINGS.get("gemini_model") if APP_SETTINGS.get("gemini_model") in MODEL_CONFIGS["Gemini"] else MODEL_CONFIGS["Gemini"][0]),
                         label="Gemini model",
                         interactive=True,
                     )
                 with gr.Row():
                     aggregator_dropdown = gr.Dropdown(
                         choices=["ChatGPT", "Claude", "Gemini"],
-                        value="Claude",
+                        value=(APP_SETTINGS.get("aggregator") if APP_SETTINGS.get("aggregator") in ["ChatGPT", "Claude", "Gemini"] else "Claude"),
                         label="Aggregator",
                         interactive=True,
                     )
@@ -255,13 +326,13 @@ def build_ui():
                         minimum=0.0,
                         maximum=1.0,
                         step=0.05,
-                        value=0.7,
+                        value=float(APP_SETTINGS.get("temperature", 0.7)),
                         label="Temperature",
                         interactive=True,
                     )
                 with gr.Row():
                     notifications_checkbox = gr.Checkbox(
-                        value=True,
+                        value=bool(APP_SETTINGS.get("notifications", True)),
                         label="Notifications",
                         interactive=True,
                     )
@@ -279,6 +350,9 @@ def build_ui():
             s.selected_openai_model = selection
             # Apply to provider layer immediately
             set_openai_model(selection)
+            # Persist
+            APP_SETTINGS["openai_model"] = selection
+            save_settings(APP_SETTINGS)
             return s
 
         openai_model_dropdown.change(_set_openai_model, inputs=[openai_model_dropdown, state], outputs=state)
@@ -286,6 +360,8 @@ def build_ui():
         def _set_claude_model(selection: str, s: SessionState):
             s.selected_claude_model = selection
             set_claude_model(selection)
+            APP_SETTINGS["claude_model"] = selection
+            save_settings(APP_SETTINGS)
             return s
 
         claude_model_dropdown.change(_set_claude_model, inputs=[claude_model_dropdown, state], outputs=state)
@@ -293,12 +369,16 @@ def build_ui():
         def _set_gemini_model(selection: str, s: SessionState):
             s.selected_gemini_model = selection
             set_gemini_model(selection)
+            APP_SETTINGS["gemini_model"] = selection
+            save_settings(APP_SETTINGS)
             return s
 
         gemini_model_dropdown.change(_set_gemini_model, inputs=[gemini_model_dropdown, state], outputs=state)
 
         def _set_aggregator(selection: str, s: SessionState):
             s.selected_aggregator = selection
+            APP_SETTINGS["aggregator"] = selection
+            save_settings(APP_SETTINGS)
             return s
 
         aggregator_dropdown.change(_set_aggregator, inputs=[aggregator_dropdown, state], outputs=state)
@@ -308,12 +388,16 @@ def build_ui():
                 s.temperature = float(val)
             except Exception:
                 s.temperature = 0.7
+            APP_SETTINGS["temperature"] = s.temperature
+            save_settings(APP_SETTINGS)
             return s
 
         temperature_slider.change(_set_temperature, inputs=[temperature_slider, state], outputs=state)
 
         def _set_notifications(enabled: bool, s: SessionState):
             s.notifications_enabled = bool(enabled)
+            APP_SETTINGS["notifications"] = s.notifications_enabled
+            save_settings(APP_SETTINGS)
             return s
 
         notifications_checkbox.change(_set_notifications, inputs=[notifications_checkbox, state], outputs=state)
