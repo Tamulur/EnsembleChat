@@ -52,7 +52,7 @@ async def _get_anthropic_file_content(pdf_path: str) -> dict:
     return document_content
 
 
-async def call(messages: List[Dict[str, str]], pdf_path: Optional[str]) -> Tuple[str, int, int]:
+async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, temperature: float = 0.7) -> Tuple[str, int, int]:
     if anthropic is None:
         raise LLMError("anthropic package not installed")
 

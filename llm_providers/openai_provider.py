@@ -56,7 +56,7 @@ async def _get_openai_vector_store_id(pdf_path: str) -> str:
         raise LLMError(f"Failed to prepare OpenAI vector store: {exc}") from exc
 
 
-async def call(messages: List[Dict[str, str]], pdf_path: Optional[str]) -> Tuple[str, int, int]:
+async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, temperature: float = 0.7) -> Tuple[str, int, int]:
     if _openai_client is None:
         raise LLMError("openai package not installed or AsyncOpenAI not available")
 
@@ -90,8 +90,26 @@ async def call(messages: List[Dict[str, str]], pdf_path: Optional[str]) -> Tuple
         "prompt_cache_key": "cache-demo-1",
         "timeout": TIMEOUT,
     }
+    # Temperature is supported by OpenAI Responses API
+    try:
+        if isinstance(temperature, (int, float)):
+            create_kwargs["temperature"] = float(temperature)
+    except Exception:
+        pass
 
-    resp = await _openai_client.responses.create(**create_kwargs)
+    try:
+        resp = await _openai_client.responses.create(**create_kwargs)
+    except Exception as exc:
+        msg = str(exc).lower()
+        if ("temperature" in msg) and ("unsupported" in msg or "not supported" in msg):
+            try:
+                if "temperature" in create_kwargs:
+                    del create_kwargs["temperature"]
+            except Exception:
+                pass
+            resp = await _openai_client.responses.create(**create_kwargs)
+        else:
+            raise
 
     print(f"Full OpenAI response (MODEL_ID={MODEL_ID}):", resp)
 

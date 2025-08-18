@@ -50,7 +50,7 @@ async def _get_gemini_file_resource(pdf_path: str):
     return file_resource
 
 
-async def call(messages: List[Dict[str, str]], pdf_path: Optional[str]) -> Tuple[str, int, int]:
+async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, temperature: float = 0.7) -> Tuple[str, int, int]:
     if genai is None:
         raise LLMError("google-genai package not installed")
 
@@ -73,6 +73,8 @@ async def call(messages: List[Dict[str, str]], pdf_path: Optional[str]) -> Tuple
 
     grounding_tool = types.Tool(google_search=types.GoogleSearch())
     config = types.GenerateContentConfig(system_instruction=system_instruction, tools=[grounding_tool])
+    if temperature is not None:
+        config.temperature = temperature
 
     def _send_message():
         chat = _gemini_client.chats.create(model=MODEL_ID, config=config, history=prior_history)

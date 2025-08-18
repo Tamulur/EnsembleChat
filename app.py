@@ -107,11 +107,20 @@ class SessionState:
         self.selected_claude_model = MODEL_CONFIGS["Claude"][0]
         self.selected_gemini_model = MODEL_CONFIGS["Gemini"][0]
         self.selected_aggregator = "Claude"
+        self.temperature: float = 0.7
 
 
 async def _handle_single(model_label: str, user_input: str, state: SessionState):
     try:
-        reply_text = await call_proposer(model_label, user_input, state.chat_history.entries(), state.pdf_path, state.cost_tracker, retries=1)
+        reply_text = await call_proposer(
+            model_label,
+            user_input,
+            state.chat_history.entries(),
+            state.pdf_path,
+            state.cost_tracker,
+            retries=1,
+            temperature=state.temperature,
+        )
     except Exception as e:
         print("[ERROR] single LLM", model_label, e)
         reply_text = "(error)"
@@ -238,6 +247,15 @@ def build_ui():
                         label="Aggregator",
                         interactive=True,
                     )
+                with gr.Row():
+                    temperature_slider = gr.Slider(
+                        minimum=0.0,
+                        maximum=1.0,
+                        step=0.05,
+                        value=0.7,
+                        label="Temperature",
+                        interactive=True,
+                    )
 
         # Update pdf path
         def _set_pdf(file, s: SessionState):
@@ -275,6 +293,15 @@ def build_ui():
             return s
 
         aggregator_dropdown.change(_set_aggregator, inputs=[aggregator_dropdown, state], outputs=state)
+
+        def _set_temperature(val: float, s: SessionState):
+            try:
+                s.temperature = float(val)
+            except Exception:
+                s.temperature = 0.7
+            return s
+
+        temperature_slider.change(_set_temperature, inputs=[temperature_slider, state], outputs=state)
 
         # --- User message handling ---
         def _add_user_and_clear(user_input: str, s: SessionState):
@@ -352,8 +379,15 @@ def build_ui():
                             async def proposer_task(model):
                                 try:
                                     # Return model name with result for easier tracking
-                                    result = await call_proposer(model, last_user, s.chat_history.entries(), s.pdf_path,
-                                                               s.cost_tracker, retries=5)
+                                    result = await call_proposer(
+                                        model,
+                                        last_user,
+                                        s.chat_history.entries(),
+                                        s.pdf_path,
+                                        s.cost_tracker,
+                                        retries=5,
+                                        temperature=s.temperature,
+                                    )
                                     return model, result
                                 except Exception as e:
                                     print("[ERROR] proposer", model, e)
@@ -398,6 +432,7 @@ def build_ui():
                                     s.cost_tracker,
                                     iteration,
                                     s.selected_aggregator,
+                                    temperature=s.temperature,
                                 )
 
                                 first = first_non_empty_line(agg_out).lower()
@@ -414,8 +449,16 @@ def build_ui():
                                     s.resubmissions_history.append(("", aggregator_notes))
                                     async def synth_task(model):
                                         try:
-                                            return await call_synthesis(model, last_user, s.chat_history.entries(), s.pdf_path,
-                                                                        aggregator_notes=aggregator_notes, cost_tracker=s.cost_tracker, retries=5)
+                                            return await call_synthesis(
+                                                model,
+                                                last_user,
+                                                s.chat_history.entries(),
+                                                s.pdf_path,
+                                                aggregator_notes=aggregator_notes,
+                                                cost_tracker=s.cost_tracker,
+                                                retries=5,
+                                                temperature=s.temperature,
+                                            )
                                         except Exception as e:
                                             print("[ERROR] synthesis", model, e)
                                             return "(error)"

@@ -33,6 +33,7 @@ async def call_aggregator(
     cost_tracker: CostTracker,
     iteration: int,
     aggregator_label: str,
+    temperature: float = 0.7,
 ):
     agg_messages = []
     agg_messages.append({"role": "system", "content": prompts.aggregator_system()})
@@ -56,7 +57,13 @@ async def call_aggregator(
     # Use selected provider as aggregator
     retries = 1  # aggregator retry once on failure per spec
     try:
-        response_text, pt, ct = await call_llm(aggregator_label, agg_messages, pdf_path=pdf_path, retries=retries)
+        response_text, pt, ct = await call_llm(
+            aggregator_label,
+            agg_messages,
+            pdf_path=pdf_path,
+            retries=retries,
+            temperature=temperature,
+        )
         cost_tracker.add_usage(aggregator_label, pt, ct)
         return response_text
     except LLMError as e:

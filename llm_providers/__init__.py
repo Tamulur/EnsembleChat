@@ -24,15 +24,16 @@ async def call_llm(
     *,
     pdf_path: Optional[str] = None,
     retries: int = 1,
+    temperature: float = 0.7,
 ) -> Tuple[str, int, int]:
     async def _inner():
         ml = model_label.lower()
         if ml == "chatgpt":
-            return await _openai.call(messages, pdf_path)
+            return await _openai.call(messages, pdf_path, temperature=temperature)
         elif ml == "claude":
-            return await _anthropic.call(messages, pdf_path)
+            return await _anthropic.call(messages, pdf_path, temperature=temperature)
         elif ml == "gemini":
-            return await _gemini.call(messages, pdf_path)
+            return await _gemini.call(messages, pdf_path, temperature=temperature)
         else:
             raise ValueError(f"Unknown model label: {model_label}")
 
