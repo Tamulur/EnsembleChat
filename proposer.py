@@ -1,12 +1,12 @@
 import asyncio
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import prompts
 from llm_providers import call_llm, LLMError
 from utils import CostTracker
 
 
-async def call_proposer(model_label: str, user_input: str, chat_history: List[Dict], pdf_path: str,
+async def call_proposer(model_label: str, user_input: str, chat_history: List[Dict], pdf_path: Optional[str],
                         cost_tracker: CostTracker, retries: int = 5) -> str:
     messages = []
     messages.append({"role": "system", "content": prompts.proposer_system(model_label)})
@@ -22,7 +22,7 @@ async def call_proposer(model_label: str, user_input: str, chat_history: List[Di
     return text
 
 
-async def call_synthesis(model_label: str, user_input: str, chat_history: List[Dict], pdf_path: str,
+async def call_synthesis(model_label: str, user_input: str, chat_history: List[Dict], pdf_path: Optional[str],
                          aggregator_notes: str, cost_tracker: CostTracker, retries: int = 5) -> str:
     messages = []
     messages.append({"role": "system", "content": prompts.proposer_system(model_label)})

@@ -64,10 +64,12 @@ async def call(messages: List[Dict[str, str]], pdf_path: Optional[str]) -> Tuple
     last_user_content = messages[-1]["content"]
     prior_history = _dicts_to_gemini_history(messages[:-1])
 
-    pdf = await _get_gemini_file_resource(pdf_path)
-    pdf_part = types.Part.from_uri(file_uri=pdf.uri, mime_type=pdf.mime_type)
-    pdf_content = types.Content(role="user", parts=[pdf_part])
-    prior_history.insert(0, pdf_content)
+    # Attach PDF only if provided; allow running without a PDF
+    if pdf_path:
+        pdf = await _get_gemini_file_resource(pdf_path)
+        pdf_part = types.Part.from_uri(file_uri=pdf.uri, mime_type=pdf.mime_type)
+        pdf_content = types.Content(role="user", parts=[pdf_part])
+        prior_history.insert(0, pdf_content)
 
     grounding_tool = types.Tool(google_search=types.GoogleSearch())
     config = types.GenerateContentConfig(system_instruction=system_instruction, tools=[grounding_tool])

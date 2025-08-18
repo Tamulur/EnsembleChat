@@ -1,5 +1,5 @@
 import asyncio
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import prompts
 from llm_providers import call_llm, LLMError
@@ -29,7 +29,7 @@ async def call_aggregator(
     proposals: List[str],
     user_input: str,
     chat_history: List[Dict],
-    pdf_path: str,
+    pdf_path: Optional[str],
     cost_tracker: CostTracker,
     iteration: int,
     aggregator_label: str,
