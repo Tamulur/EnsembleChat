@@ -26,7 +26,7 @@ BUTTONS = [
     "ChatGPT",
     "Claude",
     "Gemini",
-    "ChatGPT & Claude",
+    "ChatGPT & Gemini",
     "All",
 ]
 
@@ -35,8 +35,8 @@ ICON_MAP = {
     "ChatGPT": str(ICON_DIR / "OpenAI.png"),
     "Claude": str(ICON_DIR / "Claude.png"),
     "Gemini": str(ICON_DIR / "Gemini.png"),
-    "ChatGPT & Claude": str(ICON_DIR / "chatgpt_claude.png"),
-    "All": str(ICON_DIR / "all.png"),
+    "ChatGPT & Gemini": str(ICON_DIR / "ChatGPT_Gemini.png"),
+    "All": str(ICON_DIR / "All.png"),
 }
 
 
@@ -76,7 +76,7 @@ def load_model_configurations() -> dict[str, list[str]]:
 MODEL_CONFIGS = load_model_configurations()
 
 MULTI_BUTTON_MODELS = {
-    "ChatGPT & Claude": ["ChatGPT", "Claude"],
+    "ChatGPT & Gemini": ["ChatGPT", "Gemini"],
     "All": ["ChatGPT", "Claude", "Gemini"],
 }
 
@@ -157,7 +157,7 @@ def build_ui():
                         "ChatGPT": "btn_chatgpt",
                         "Claude": "btn_claude",
                         "Gemini": "btn_gemini",
-                        "ChatGPT & Claude": "btn_chatgpt_claude",
+                        "ChatGPT & Gemini": "btn_chatgpt_gemini",
                         "All": "btn_all",
                     }
                     btns = [

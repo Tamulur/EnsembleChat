@@ -4,8 +4,8 @@
 
 A local Gradio chat app for **personal use** that can, per user turn, send the same question (plus chat history and the selected PDF) to multiple LLMs (“proposers”), then pass their proposals to an **aggregator** LLM that either (a) issues the final reply or (b) requests a re-synthesis round from the proposers. Final replies (only) are added to the official chat history.
 
-* **Proposer models:** OpenAI ChatGPT, Claude Sonnet 4, Gemini 2.5 Pro (fixed set).
-* **Aggregator model:** Claude Sonnet 4 (fixed).
+* **Proposer models:** ChatGPT, Claude, Gemini.
+* **Aggregator model:** Either ChatGPT, or Claude, or Gemini.
 * **One PDF per session**, always attached to every model call using each provider’s native PDF/file integration. No local parsing/OCR; assume normal-length arXiv-style PDFs.
 
 ## Frontend (Gradio)
@@ -20,7 +20,7 @@ Six tabs: Chat, ChatGPT, Claude, Gemini, Resubmissions, and Settings.
   1. **ChatGPT**
   2. **Claude**
   3. **Gemini**
-  4. **ChatGPT & Claude**
+  4. **ChatGPT & Gemini**
   5. **All** (ChatGPT + Claude + Gemini)
      These map to either single-LLM mode (no aggregation) or proposer+aggregator mode.
 
@@ -30,13 +30,13 @@ Six tabs: Chat, ChatGPT, Claude, Gemini, Resubmissions, and Settings.
        *Example:* clicking **All** resends the prior user input to all proposers and aggregates their new replies.
 
 ### Model tabs: last outputs of each LLM
-The next three tabs show the last output of each LLM that is produced when directly queried for an answer (with the ChatGPT, Claude or Gemini button), or when asked for a proposal (with the All button for example). The Claude tab contains only the output that was produced in these cases, it does not show the output that Claude produced in the aggregator role.
+The next three tabs show the last output of each LLM that is produced when directly queried for an answer (with the ChatGPT, Claude or Gemini button), or when asked for a proposal (with the All button for example). The Claude tab contains only the output that was produced in these cases, it does not show the output that Claude produced in the aggregator role (if Claude is set to be the aggregator).
 
 ### Resubmissions Tab
 The Resubmissions tab shows a chat window with a history of resubmission requests that the aggregator LLM sent so far. Every time the aggregator LLM decides that because something is off, it needs to ask the other LLMs for another round of proposals (so for every iteration after the first) by sending """REQUEST SYNTHESIS FROM PROPOSERS""", the user prompt it sends (containing the proposals from the previous iteration and the remarks for each) is logged as a separate message entry into this tab's chat window.
 
 ### Settings Tab
-In the Settings tab the user can select which model to use for each provider: For each provider, there is a dropdown with possible models. The model selected here will be used for the respective provider. Which models are available in the dropdowns for each provider is determined in the configuration files. In the folder "Configurations", there is a file for each provider: "OpenAI.json", "Claude.json" and "Gemini.json". Each configuration JSON file contains a field "models" that has a list of model names for that provider. For OpenAI the list should be "GPT-5", "GPT-5-mini", "o3", and "GPT-4.1". For Claude the list should be "claude-sonnet-4-0". For Gemini the list should be "gemini-2.5-pro". Currently the lists for Claude and Gemini only have one possible option each.
+In the Settings tab the user can select which model to use for each provider: For each provider, there is a dropdown with possible models. The model selected here will be used for the respective provider. Which models are available in the dropdowns for each provider is determined in the configuration files. In the folder "Configurations", there is a file for each provider: "OpenAI.json", "Claude.json" and "Gemini.json". Each configuration JSON file contains a field "models" that has a list of model names for that provider. For OpenAI the list should be "GPT-5", "GPT-5-mini", "o3", and "GPT-4.1". For Claude the list should be "claude-sonnet-4-0". For Gemini the list should be "gemini-2.5-pro". Currently the lists for Claude and Gemini only have one possible option each. Another dropdown labelled "Aggregator" lets the user select one of the providers (ChatGPT, Claude, or Gemini) as the aggregator.
 
 
 ### UI status messages (non-stream)
@@ -69,7 +69,7 @@ In the Settings tab the user can select which model to use for each provider: Fo
 * Send: model’s **system prompt** (from `ProposerSystemPrompts/<Model>.txt`), the **PDF**, full **chat history** (final replies only), and the **new user input** as the user message.
 * Display the model's reply and **add to history** as the final reply.
 
-### Multi-LLM mode (buttons: ChatGPT & Claude / All)
+### Multi-LLM mode (buttons: ChatGPT & Gemini / All)
 
 1. **Proposer phase**
 
