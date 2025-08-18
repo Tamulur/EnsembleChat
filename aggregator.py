@@ -25,8 +25,15 @@ def text_after_first_line(text: str) -> str:
     return "\n".join(lines[1:]).strip()
 
 
-async def call_aggregator(proposals: List[str], user_input: str, chat_history: List[Dict], pdf_path: str,
-                          cost_tracker: CostTracker, iteration: int):
+async def call_aggregator(
+    proposals: List[str],
+    user_input: str,
+    chat_history: List[Dict],
+    pdf_path: str,
+    cost_tracker: CostTracker,
+    iteration: int,
+    aggregator_label: str,
+):
     agg_messages = []
     agg_messages.append({"role": "system", "content": prompts.aggregator_system()})
 
@@ -46,11 +53,11 @@ async def call_aggregator(proposals: List[str], user_input: str, chat_history: L
     packet = format_proposal_packet(proposals)
     agg_messages.append({"role": "user", "content": "[" + agg_user_prompt + "\n" + packet + "]"})
 
-    # Claude aggregator label is fixed
+    # Use selected provider as aggregator
     retries = 1  # aggregator retry once on failure per spec
     try:
-        response_text, pt, ct = await call_llm("claude", agg_messages, pdf_path=pdf_path, retries=retries)
-        cost_tracker.add_usage("claude", pt, ct)
+        response_text, pt, ct = await call_llm(aggregator_label, agg_messages, pdf_path=pdf_path, retries=retries)
+        cost_tracker.add_usage(aggregator_label, pt, ct)
         return response_text
     except LLMError as e:
         if retries == 1:

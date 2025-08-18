@@ -104,6 +104,7 @@ class SessionState:
         self.selected_openai_model = MODEL_CONFIGS["OpenAI"][0]
         self.selected_claude_model = MODEL_CONFIGS["Claude"][0]
         self.selected_gemini_model = MODEL_CONFIGS["Gemini"][0]
+        self.selected_aggregator = "Claude"
 
 
 async def _handle_single(model_label: str, user_input: str, state: SessionState):
@@ -227,6 +228,13 @@ def build_ui():
                         label="Gemini model",
                         interactive=True,
                     )
+                with gr.Row():
+                    aggregator_dropdown = gr.Dropdown(
+                        choices=["ChatGPT", "Claude", "Gemini"],
+                        value="Claude",
+                        label="Aggregator",
+                        interactive=True,
+                    )
 
         # Update pdf path
         def _set_pdf(file, s: SessionState):
@@ -258,6 +266,12 @@ def build_ui():
             return s
 
         gemini_model_dropdown.change(_set_gemini_model, inputs=[gemini_model_dropdown, state], outputs=state)
+
+        def _set_aggregator(selection: str, s: SessionState):
+            s.selected_aggregator = selection
+            return s
+
+        aggregator_dropdown.change(_set_aggregator, inputs=[aggregator_dropdown, state], outputs=state)
 
         # --- User message handling ---
         def _add_user_and_clear(user_input: str, s: SessionState):
@@ -373,8 +387,15 @@ def build_ui():
                             for iteration in range(1, 6):
                                 yield s.chat_history.as_display(), gr.update(value=f"**Status:** Aggregating replies, iteration {iteration}…", visible=True), *_model_and_cost_updates()
                                 
-                                agg_out = await call_aggregator(proposals, last_user, s.chat_history.entries(), s.pdf_path,
-                                                                s.cost_tracker, iteration)
+                                agg_out = await call_aggregator(
+                                    proposals,
+                                    last_user,
+                                    s.chat_history.entries(),
+                                    s.pdf_path,
+                                    s.cost_tracker,
+                                    iteration,
+                                    s.selected_aggregator,
+                                )
 
                                 first = first_non_empty_line(agg_out).lower()
                                 if "final" in first:
