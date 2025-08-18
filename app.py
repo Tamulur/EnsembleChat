@@ -13,6 +13,8 @@ from frontend_js import (
     JS_ALIGN_ON_CHANGE,
     JS_SCROLL_FIX_AFTER_EVENT,
     JS_PRESERVE_TAB_SCROLL,
+    JS_NOTIFY_IF_FLAG,
+    JS_PREPARE_NOTIFICATIONS,
 )
 from history import ChatHistory
 from proposer import call_proposer, call_synthesis
@@ -150,6 +152,7 @@ def build_ui():
                 )
                 status_display = gr.Markdown("", visible=False)
                 user_box = gr.Textbox(label="You", value="Please explain this paper to me.")
+                notify_flag = gr.Textbox(value="", visible=False)
 
                 with gr.Row():
                     # Assign stable CSS ids so each button icon can be styled individually via CSS
@@ -325,7 +328,7 @@ def build_ui():
                             last_user = entry["text"]
                             break
                     if last_user is None:
-                        yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates()
+                        yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), ""
                         return
 
                     # Budget guard (rough, before making calls we estimate slight cost)
@@ -333,13 +336,13 @@ def build_ui():
                         warn = "Budget exceeded ($5). Start a new session or change selection."
                         disp = s.chat_history.as_display()
                         disp.append((None, warn))
-                        yield disp, gr.update(value="", visible=False), *_model_and_cost_updates()
+                        yield disp, gr.update(value="", visible=False), *_model_and_cost_updates(), ""
                         return
 
                     if lbl in ["ChatGPT", "Claude", "Gemini"]:
-                        yield s.chat_history.as_display(), gr.update(value="**Status:** Waiting for " + lbl + "…", visible=True), *_model_and_cost_updates()
+                        yield s.chat_history.as_display(), gr.update(value="**Status:** Waiting for " + lbl + "…", visible=True), *_model_and_cost_updates(), ""
                         result = await _handle_single(lbl, last_user, s)
-                        yield result, gr.update(value="", visible=False), *_model_and_cost_updates()
+                        yield result, gr.update(value="", visible=False), *_model_and_cost_updates(), "done"
                     else:
                         models = MULTI_BUTTON_MODELS[lbl]
                         
@@ -361,7 +364,7 @@ def build_ui():
                             num_models = len(models)
 
                             yield s.chat_history.as_display(), gr.update(
-                                value=f"**Status:** Collecting replies (0/{num_models})...", visible=True), *_model_and_cost_updates()
+                                value=f"**Status:** Collecting replies (0/{num_models})...", visible=True), *_model_and_cost_updates(), ""
 
                             for i, future in enumerate(asyncio.as_completed(tasks)):
                                 model, proposal = await future
@@ -370,7 +373,7 @@ def build_ui():
                                 # Update status message with progress
                                 status_msg = f"**Status:** Collecting replies ({i + 1}/{num_models})..."
                                 yield s.chat_history.as_display(), gr.update(value=status_msg,
-                                                                              visible=True), *_model_and_cost_updates()
+                                                                              visible=True), *_model_and_cost_updates(), ""
 
                             # Re-order proposals to match original model list
                             proposals = [proposals_by_model[m] for m in models]
@@ -385,7 +388,7 @@ def build_ui():
 
                             # Aggregator iterations
                             for iteration in range(1, 6):
-                                yield s.chat_history.as_display(), gr.update(value=f"**Status:** Aggregating replies, iteration {iteration}…", visible=True), *_model_and_cost_updates()
+                                yield s.chat_history.as_display(), gr.update(value=f"**Status:** Aggregating replies, iteration {iteration}…", visible=True), *_model_and_cost_updates(), ""
                                 
                                 agg_out = await call_aggregator(
                                     proposals,
@@ -402,7 +405,7 @@ def build_ui():
                                     final_reply = text_after_first_line(agg_out)
                                     s.chat_history.add_assistant(final_reply)
                                     save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
-                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates()
+                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), "done"
                                     return
                                 elif "request synthesis from proposers" in first and iteration < 5:
                                     # Send aggregator notes to proposers for new synthesis round
@@ -427,7 +430,7 @@ def build_ui():
                                     # Fallback treat entire aggregator output as final
                                     s.chat_history.add_assistant(agg_out)
                                     save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
-                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates()
+                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), "done"
                                     return
                         
                         async for (
@@ -440,6 +443,7 @@ def build_ui():
                             gemini_cost_up,
                             gemini_up,
                             resub_up,
+                            notify_update,
                         ) in status_generator():
                             yield (
                                 chat_display,
@@ -451,6 +455,7 @@ def build_ui():
                                 gemini_cost_up,
                                 gemini_up,
                                 resub_up,
+                                notify_update,
                             )
                 
                 return _handler
@@ -468,6 +473,7 @@ def build_ui():
                     gemini_cost,
                     gemini_view,
                     resub_view,
+                    notify_flag,
                 ],
             )
 
@@ -479,12 +485,28 @@ def build_ui():
                 js=JS_SCROLL_FIX_AFTER_EVENT,
             )
 
+            # Trigger a browser notification when final reply is done
+            evt.then(
+                None,
+                inputs=[notify_flag],
+                outputs=None,
+                js=JS_NOTIFY_IF_FLAG,
+            )
+
         # Preserve per-tab scroll position across tab switches
         demo.load(
             None,
             inputs=None,
             outputs=None,
             js=JS_PRESERVE_TAB_SCROLL,
+        )
+
+        # On initial load, set up a passive click-listener to request Notification permission
+        demo.load(
+            None,
+            inputs=None,
+            outputs=None,
+            js=JS_PREPARE_NOTIFICATIONS,
         )
 
         # Apply initial provider models from loaded configuration once UI is ready

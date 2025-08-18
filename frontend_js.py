@@ -174,3 +174,42 @@ JS_PRESERVE_TAB_SCROLL = """
 """
 
 
+# Show a browser notification if the provided flag equals 'done'
+JS_NOTIFY_IF_FLAG = """
+(flag) => {
+  try {
+    if (!flag || String(flag).toLowerCase() !== 'done') return;
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      try { new Notification('Reply complete'); } catch (_) {}
+    }
+  } catch (_) {}
+}
+"""
+
+
+# Prepare Notification permission by requesting it on the user's first click
+JS_PREPARE_NOTIFICATIONS = """
+() => {
+  try {
+    const app = document.querySelector('gradio-app');
+    const doc = (app && app.shadowRoot) ? app.shadowRoot : document;
+    const FLAG = '__notif_prep_done__';
+    if (doc[FLAG]) return;
+    const cleanup = () => { try { doc.removeEventListener('click', handler, true); } catch (_) {} doc[FLAG] = true; };
+    const handler = () => {
+      try {
+        if (!('Notification' in window)) { cleanup(); return; }
+        if (Notification.permission === 'default') {
+          try { Notification.requestPermission().finally(cleanup); } catch (_) { cleanup(); }
+        } else {
+          cleanup();
+        }
+      } catch (_) { cleanup(); }
+    };
+    doc.addEventListener('click', handler, true);
+  } catch (_) {}
+}
+"""
+
+
