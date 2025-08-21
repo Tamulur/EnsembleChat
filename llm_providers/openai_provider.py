@@ -111,7 +111,7 @@ async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, tempe
         else:
             raise
 
-    print(f"Full OpenAI response (MODEL_ID={MODEL_ID}):", resp)
+    # print(f"Full OpenAI response (MODEL_ID={MODEL_ID}):", resp)
 
     text = ""
     if hasattr(resp, "output") and resp.output:
