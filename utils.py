@@ -81,24 +81,32 @@ def ensure_chats_dir():
 def save_chat(chat_id: str, history: List[Dict], pdf_path: str | None = None):
     """Save chat transcript to Chats directory.
 
-    Filename format: <pdf_title>_<timestamp>.txt when pdf_path provided,
-    otherwise <timestamp>.txt.
+    Filename format: <pdf_title>_<timestamp>.md when pdf_path provided,
+    otherwise <timestamp>.md.
     """
     ensure_chats_dir()
     if pdf_path:
         title = os.path.splitext(os.path.basename(pdf_path))[0]
-        filename = f"{title}_{chat_id}.txt"
+        filename = f"{title}_{chat_id}.md"
     else:
-        filename = f"{chat_id}.txt"
+        filename = f"{chat_id}.md"
     path = os.path.join("Chats", filename)
     with open(path, "w", encoding="utf-8") as f:
+        prev_role = None
         for entry in history:
             role = entry["role"]
             text = entry["text"]
+            
+            # Add horizontal separator when speaker changes
+            if prev_role is not None and prev_role != role:
+                f.write("---\n\n")
+            
             if role == "user":
-                f.write(f"User: {text}\n\n")
+                f.write(f"## 🧑 User:\n{text}\n\n")
             elif role == "assistant":
-                f.write(f"Assistant: {text}\n\n")
+                f.write(f"## 🤖 Assistant:\n{text}\n\n")
+            
+            prev_role = role
 
 
 def timestamp_id() -> str:

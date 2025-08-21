@@ -60,7 +60,7 @@ All settings are stored in a file Settings.json. If that file doesn't exist, it 
 ## Data/State
 
 * **Official chat history** (persisted): only **user inputs** and **final replies** (either from a single LLM call or from the aggregator). Proposals and aggregator deliberations are not stored.
-* Save chats under `Chats/` (one file per session, timestamped filenames). The app only remembers **the selected PDF path** during the active session. Save chats in text format.
+* Save chats under `Chats/` (one file per session, timestamped filenames). The app only remembers **the selected PDF path** during the active session. Save chats in Markdown format.
 
 ## Model Calls
 
@@ -163,5 +163,5 @@ ExampleExplanations.txt
 
 ## Minimal Logging
 
-* Write chat transcripts (user inputs + final replies) to `Chats/<session_id>.txt`.
+* Write chat transcripts (user inputs + final replies) to `Chats/<session_id>.md`.
 * Track per-turn timing (proposers total, aggregator per iteration) and the cost estimate counters.
