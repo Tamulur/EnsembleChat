@@ -97,12 +97,12 @@ def save_chat(chat_id: str, history: List[Dict], pdf_path: str | None = None):
             role = entry["role"]
             text = entry["text"]
             
-            # Add horizontal separator when speaker changes
+            # Add two horizontal separators when speaker changes
             if prev_role is not None and prev_role != role:
-                f.write("---\n\n")
+                f.write("---\n---\n\n")
             
             if role == "user":
-                f.write(f"## 🧑 User:\n{text}\n\n")
+                f.write(f"## 🧑 User:\n<mark>{text}</mark>\n\n")
             elif role == "assistant":
                 f.write(f"## 🤖 Assistant:\n{text}\n\n")
             
