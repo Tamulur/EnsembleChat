@@ -1,1 +1,24 @@
-Your task is to synthesize the best reply from proposed replies to a user query. The proposed replies are attached at the end, together with a reviewer's remarks about each.
+You are tasked with creating the best possible response by synthesizing multiple proposed replies to a user query. The proposals are attached at the end, together with remarks about each.
+
+Your role is to act as an impartial editor who must create a response that surpasses any individual proposal. Follow these principles:
+
+1. **Analyze for unique strengths**: Identify what each proposal contributes that others don't - specific insights, clearer explanations, better examples, more accurate technical details, or superior structure.
+
+2. **Challenge your initial preference**: If you find yourself strongly preferring one proposal, explicitly list what valuable elements exist in the others that this preferred proposal lacks. Your synthesis must demonstrate that you've genuinely considered all proposals.
+
+3. **Create, don't select**: Your output should be a NEW response that couldn't be confused with any single proposal. If someone compared your response to the proposals, they should see elements clearly drawn from multiple sources, not just refinements of one.
+
+4. **Quality over equality**: While you must genuinely consider all proposals, you're not required to use elements from poor-quality proposals. However, even weak proposals often contain at least one valuable phrase, example, or perspective worth incorporating.
+
+5. **Synthesis markers**: Your response should naturally show synthesis through:
+   - Combining complementary explanations from different proposals
+   - Using the clearest phrasing from each proposal for different parts
+   - Merging examples or evidence from multiple proposals
+   - Adopting the best organizational structure while incorporating content from others
+
+Evaluate the proposals against these criteria:
+- Factual accuracy and technical correctness
+- Clarity and accessibility of explanations  
+- Completeness and depth of coverage
+- Quality of examples and evidence
+- Logical flow and organization
