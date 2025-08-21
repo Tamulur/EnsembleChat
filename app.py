@@ -538,16 +538,30 @@ def build_ui():
                             for iteration in range(1, 6):
                                 yield s.chat_history.as_display(), gr.update(value=f"**Status:** Aggregating replies, iteration {iteration}…", visible=True), *_model_and_cost_updates(), ""
                                 
-                                agg_out = await call_aggregator(
-                                    proposals,
-                                    last_user,
-                                    s.chat_history.entries(),
-                                    s.pdf_path,
-                                    s.cost_tracker,
-                                    iteration,
-                                    s.selected_aggregator,
-                                    temperature=s.temperature,
-                                )
+                                try:
+                                    agg_out = await call_aggregator(
+                                        proposals,
+                                        last_user,
+                                        s.chat_history.entries(),
+                                        s.pdf_path,
+                                        s.cost_tracker,
+                                        iteration,
+                                        s.selected_aggregator,
+                                        temperature=s.temperature,
+                                    )
+                                except Exception as e:
+                                    print(f"[ERROR] aggregator {s.selected_aggregator} iteration {iteration}: {e}")
+                                    
+                                    # On aggregator failure, fall back to showing proposals
+                                    fallback_reply = f"**Aggregation failed ({s.selected_aggregator} temporarily unavailable). Here are the individual proposals:**\n\n"
+                                    for i, proposal in enumerate(proposals, 1):
+                                        if proposal != "(error)":
+                                            fallback_reply += f"**Proposal {i}:**\n{proposal}\n\n"
+                                    
+                                    s.chat_history.add_assistant(fallback_reply.strip())
+                                    save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
+                                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), ("done" if s.notifications_enabled else "")
+                                    return
 
                                 first = first_non_empty_line(agg_out).lower()
                                 if "final" in first:

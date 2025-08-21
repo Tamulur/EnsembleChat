@@ -55,20 +55,32 @@ async def call_aggregator(
     agg_messages.append({"role": "user", "content": "[" + agg_user_prompt + "\n" + packet + "]"})
 
     # Use selected provider as aggregator
-    retries = 1  # aggregator retry once on failure per spec
+    # Use more retries for overload-prone scenarios, but keep it simple
     try:
         response_text, pt, ct = await call_llm(
             aggregator_label,
             agg_messages,
             pdf_path=pdf_path,
-            retries=retries,
+            retries=1,  # Start with normal retry count
             temperature=temperature,
         )
         cost_tracker.add_usage(aggregator_label, pt, ct)
         return response_text
     except LLMError as e:
-        if retries == 1:
-            # already retried once
-            raise
+        # Check if this is a 529 overload error and give it one more chance with more retries
+        error_str = str(e).lower()
+        if ("529" in error_str or "overloaded" in error_str) and iteration == 1:
+            print(f"[AGGREGATOR] Detected overload error on first attempt, retrying with more attempts...")
+            # Only retry with more attempts on the first iteration to avoid endless loops
+            response_text, pt, ct = await call_llm(
+                aggregator_label,
+                agg_messages,
+                pdf_path=pdf_path,
+                retries=3,  # More retries only for overload errors on first iteration
+                temperature=temperature,
+            )
+            cost_tracker.add_usage(aggregator_label, pt, ct)
+            return response_text
         else:
+            # For non-overload errors or later iterations, just fail
             raise
