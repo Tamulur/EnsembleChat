@@ -193,7 +193,7 @@ async def _handle_single(model_label: str, user_input: str, state: SessionState)
             state.chat_history.entries(),
             state.pdf_path,
             state.cost_tracker,
-            retries=1,
+            retries=5,
             temperature=state.temperature,
         )
     except Exception as e:

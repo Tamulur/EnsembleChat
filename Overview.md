@@ -157,8 +157,9 @@ ExampleExplanations.txt
 
 ## Errors & Retries
 
+* **Single LLM mode:** retry up to **5** times on transport/5xx/timeouts
 * **Proposers:** retry up to **5** times on transport/5xx/timeouts; otherwise skip and continue with remaining proposals.
-* **Aggregator:** on error/timeout, retry once; if still failing, show a concise error and keep the turn open for user re-send.
+* **Aggregator:** on error/timeout, retry once, or three times on 529 (overloaded) messages; if still failing, show a concise error and keep the turn open for user re-send.
 * Surface a concise, user-facing error string; log full details to console.
 
 ## Minimal Logging
