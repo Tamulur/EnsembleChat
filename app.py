@@ -8,7 +8,7 @@ from pathlib import Path
 from PIL import Image
 warnings.filterwarnings("ignore", category=UserWarning, message="You have not specified a value for the `type` parameter.*")
 
-from utils import CostTracker, save_chat, timestamp_id, BUDGET_LIMIT
+from utils import CostTracker, save_chat, timestamp_id, BUDGET_LIMIT, create_user_friendly_error_message
 from frontend_js import (
     JS_ALIGN_ON_CHANGE,
     JS_SCROLL_FIX_AFTER_EVENT,
@@ -198,7 +198,7 @@ async def _handle_single(model_label: str, user_input: str, state: SessionState)
         )
     except Exception as e:
         print("[ERROR] single LLM", model_label, e)
-        reply_text = "(error)"
+        reply_text = create_user_friendly_error_message(e, model_label)
     # Update chat history and per-model tab history
     state.chat_history.add_assistant(reply_text)
     state.model_histories[model_label].append(("", reply_text))
@@ -505,7 +505,7 @@ def build_ui():
                                     return model, result
                                 except Exception as e:
                                     print("[ERROR] proposer", model, e)
-                                    return model, "(error)"
+                                    return model, create_user_friendly_error_message(e, model)
 
                             tasks = [proposer_task(m) for m in models]
                             proposals_by_model = {}
@@ -553,10 +553,11 @@ def build_ui():
                                     print(f"[ERROR] aggregator {s.selected_aggregator} iteration {iteration}: {e}")
                                     
                                     # On aggregator failure, fall back to showing proposals
-                                    fallback_reply = f"**Aggregation failed ({s.selected_aggregator} temporarily unavailable). Here are the individual proposals:**\n\n"
+                                    error_message = create_user_friendly_error_message(e, s.selected_aggregator)
+                                    fallback_reply = f"**Aggregation failed:** {error_message}\n\n**Here are the individual proposals:**\n\n"
                                     for i, proposal in enumerate(proposals, 1):
-                                        if proposal != "(error)":
-                                            fallback_reply += f"**Proposal {i}:**\n{proposal}\n\n"
+                                        # Show all proposals, including error messages (which are now user-friendly)
+                                        fallback_reply += f"**Proposal {i}:**\n{proposal}\n\n"
                                     
                                     s.chat_history.add_assistant(fallback_reply.strip())
                                     save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
@@ -589,7 +590,7 @@ def build_ui():
                                             )
                                         except Exception as e:
                                             print("[ERROR] synthesis", model, e)
-                                            return "(error)"
+                                            return create_user_friendly_error_message(e, model)
 
                                     proposals = await asyncio.gather(*[synth_task(m) for m in models])
                                     # ---- DEBUG: log each synthesis proposal ----
