@@ -136,6 +136,8 @@ All settings are stored in a file Settings.json. If that file doesn't exist, it 
 AggregatorSystemPrompt.txt
 AggregatorUserPrompt.txt
 AggregatorForceReplyUserPrompt.txt
+SynthesizePromptCommon.txt
+SystemPromptCommon.txt
 ExampleExplanations.txt
 ```
 
@@ -143,6 +145,8 @@ ExampleExplanations.txt
 * Proposer prompts: normal role behavior for answering based on PDF + chat context.
 * Synthesis prompts: instruct the proposer to revise/defend its answer given **all** proposals and the aggregator’s remarks.
 * Aggregator prompts: instruct to either **FINAL REPLY** or **REQUEST SYNTHESIS FROM PROPOSERS**, starting the output with the chosen sentinel line on the **first line**.
+* SynthesizePromptCommon.txt should replace the string {SynthesizePromptCommon} in all user prompts.
+* SystemPromptCommon.txt should replace the string {SystemPromptCommon} in all system prompts (so in what is read from AggregatorSystemPrompt.txt or from the proposer system prompts).
 * ExampleExplanations.txt contains examples of good explanations. All system prompts have a placeholder {examples} that should be replaced with the contents of ExampleExplanations.txt.
 
 ## History & Anonymity Rules
