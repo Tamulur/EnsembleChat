@@ -14,7 +14,7 @@ def _read(path: str) -> str:
 @lru_cache(maxsize=1)
 def _examples() -> str:
     try:
-        return _read("ExampleExplanations.txt")
+        return _read(os.path.join("Prompts", "ExampleExplanations.txt"))
     except FileNotFoundError:
         # If the examples file is missing, return empty string to avoid errors
         return ""
@@ -24,7 +24,7 @@ def _examples() -> str:
 @lru_cache(maxsize=1)
 def _system_prompt_common() -> str:
     try:
-        return _read("SystemPromptCommon.txt")
+        return _read(os.path.join("Prompts", "SystemPromptCommon.txt"))
     except FileNotFoundError:
         # If the system prompt common file is missing, return empty string to avoid errors
         return ""
@@ -34,7 +34,7 @@ def _system_prompt_common() -> str:
 def _synthesize_prompt_common() -> str:
     """Cached read of SynthesizePromptCommon.txt for user prompts."""
     try:
-        return _read("SynthesizePromptCommon.txt")
+        return _read(os.path.join("Prompts", "SynthesizePromptCommon.txt"))
     except FileNotFoundError:
         return ""
 
@@ -61,24 +61,24 @@ def _with_user_placeholders(text: str) -> str:
 def proposer_system(model: str) -> str:
     # Normalize to file names (ChatGPT maps to its prompt file)
     filename = f"{model}.txt"
-    return _with_placeholders(_read(os.path.join("ProposerSystemPrompts", filename)))
+    return _with_placeholders(_read(os.path.join("Prompts", "ProposerSystemPrompts", filename)))
 
 
 def proposer_synthesis_prompt(model: str) -> str:
     filename = f"{model}.txt"
     # Apply both general and user-specific placeholder replacements
     return _with_user_placeholders(
-        _with_placeholders(_read(os.path.join("SynthesizeFromProposalsPrompts", filename)))
+        _with_placeholders(_read(os.path.join("Prompts", "SynthesizeFromProposalsPrompts", filename)))
     )
 
 
 def aggregator_system() -> str:
-    return _with_placeholders(_read("AggregatorSystemPrompt.txt"))
+    return _with_placeholders(_read(os.path.join("Prompts", "AggregatorSystemPrompt.txt")))
 
 
 def aggregator_user() -> str:
-    return _with_user_placeholders(_read("AggregatorUserPrompt.txt"))
+    return _with_user_placeholders(_read(os.path.join("Prompts", "AggregatorUserPrompt.txt")))
 
 
 def aggregator_force_user() -> str:
-    return _with_user_placeholders(_read("AggregatorForceReplyUserPrompt.txt"))
+    return _with_user_placeholders(_read(os.path.join("Prompts", "AggregatorForceReplyUserPrompt.txt")))

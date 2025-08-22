@@ -74,23 +74,23 @@ All settings are stored in a file Settings.json. If that file doesn't exist, it 
 
 ### Single-LLM mode (buttons: ChatGPT / Claude / Gemini)
 
-* Send: model’s **system prompt** (from `ProposerSystemPrompts/<Model>.txt`), the **PDF**, full **chat history** (final replies only), and the **new user input** as the user message.
+* Send: model’s **system prompt** (from `Prompts/ProposerSystemPrompts/<Model>.txt`), the **PDF**, full **chat history** (final replies only), and the **new user input** as the user message.
 * Display the model's reply and **add to history** as the final reply.
 
 ### Multi-LLM mode (buttons: ChatGPT & Gemini / All)
 
 1. **Proposer phase**
 
-   * For each selected proposer, send: its system prompt (`ProposerSystemPrompts/<Model>.txt`), the **PDF**, the **chat history** (final replies only), and the **new user input** as user message.
+   * For each selected proposer, send: its system prompt (`Prompts/ProposerSystemPrompts/<Model>.txt`), the **PDF**, the **chat history** (final replies only), and the **new user input** as user message.
    * Collect replies (do **not** show). Status: “Sending requests for proposals…”, then “Collecting replies…”. 
 2. **Aggregator phase** (iteration count starts at 1)
 
    * Send to aggregator:
 
-     * `AggregatorSystemPrompt.txt` (system).
+     * `Prompts/AggregatorSystemPrompt.txt` (system).
      * The **PDF**.
      * **Chat history** (final replies only) including the **latest user input**.
-     * `AggregatorUserPrompt.txt` as user message, followed by the proposals packet:
+     * `Prompts/AggregatorUserPrompt.txt` as user message, followed by the proposals packet:
 
        ```
        # Proposed Reply 1:
@@ -112,42 +112,43 @@ All settings are stored in a file Settings.json. If that file doesn't exist, it 
 
        * For each proposer, send:
 
-         * Its system prompt (`ProposerSystemPrompts/<Model>.txt`)
+         * Its system prompt (`Prompts/ProposerSystemPrompts/<Model>.txt`)
          * The **PDF**
          * The **chat history up to and including the last user input**
-         * Its **synthesis prompt** from `SynthesizeFromProposalsPrompts/<Model>.txt` as user message, **appending the aggregator’s notes** (everything after the sentinel line).
+         * Its **synthesis prompt** from `Prompts/SynthesizeFromProposalsPrompts/<Model>.txt` as user message, **appending the aggregator’s notes** (everything after the sentinel line).
        * Collect the new proposals and go back to **Aggregator phase** with iteration `N+1`. Status: “Aggregating replies, iteration N+1…”.
 
-   * **Iteration cap & forced final:** On the **5th** aggregator pass for the same user input, **replace** `AggregatorUserPrompt.txt` with `AggregatorForceReplyUserPrompt.txt` to force a final. Display the result, then **add to history**.
+   * **Iteration cap & forced final:** On the **5th** aggregator pass for the same user input, **replace** `Prompts/AggregatorUserPrompt.txt` with `Prompts/AggregatorForceReplyUserPrompt.txt` to force a final. Display the result, then **add to history**.
 
 ## Prompts & Files
 
 ```
-/ProposerSystemPrompts/
-  ChatGPT.txt
-  Claude.txt
-  Gemini.txt
+Prompts/
+  ProposerSystemPrompts/
+    ChatGPT.txt
+    Claude.txt
+    Gemini.txt
 
-/SynthesizeFromProposalsPrompts/
-  ChatGPT.txt
-  Claude.txt
-  Gemini.txt
+  SynthesizeFromProposalsPrompts/
+    ChatGPT.txt
+    Claude.txt
+    Gemini.txt
 
-AggregatorSystemPrompt.txt
-AggregatorUserPrompt.txt
-AggregatorForceReplyUserPrompt.txt
-SynthesizePromptCommon.txt
-SystemPromptCommon.txt
-ExampleExplanations.txt
+  AggregatorSystemPrompt.txt
+  AggregatorUserPrompt.txt
+  AggregatorForceReplyUserPrompt.txt
+  SynthesizePromptCommon.txt
+  SystemPromptCommon.txt
+  ExampleExplanations.txt
 ```
 
 * All prompt files are **plain text** (no JSON schemas).
 * Proposer prompts: normal role behavior for answering based on PDF + chat context.
 * Synthesis prompts: instruct the proposer to revise/defend its answer given **all** proposals and the aggregator’s remarks.
 * Aggregator prompts: instruct to either **FINAL REPLY** or **REQUEST SYNTHESIS FROM PROPOSERS**, starting the output with the chosen sentinel line on the **first line**.
-* SynthesizePromptCommon.txt should replace the string {SynthesizePromptCommon} in all user prompts.
-* SystemPromptCommon.txt should replace the string {SystemPromptCommon} in all system prompts (so in what is read from AggregatorSystemPrompt.txt or from the proposer system prompts).
-* ExampleExplanations.txt contains examples of good explanations. All system prompts have a placeholder {examples} that should be replaced with the contents of ExampleExplanations.txt.
+* `Prompts/SynthesizePromptCommon.txt` should replace the string {SynthesizePromptCommon} in all user prompts.
+* `Prompts/SystemPromptCommon.txt` should replace the string {SystemPromptCommon} in all system prompts (so in what is read from `Prompts/AggregatorSystemPrompt.txt` or from the proposer system prompts).
+* `Prompts/ExampleExplanations.txt` contains examples of good explanations. All system prompts have a placeholder {examples} that should be replaced with the contents of this file.
 
 ## History & Anonymity Rules
 
