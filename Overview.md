@@ -29,7 +29,7 @@ Seven tabs: Chat, ChatGPT, Claude, Gemini, Attachments, Resubmissions, and Setti
        *Example:* clicking **All** resends the prior user input to all proposers and aggregates their new replies.
 
 ### Model tabs: last outputs of each LLM
-The next three tabs show the last output of each LLM that is produced when directly queried for an answer (with the ChatGPT, Claude or Gemini button), or when asked for a proposal (with the All button for example). The Claude tab contains only the output that was produced in these cases, it does not show the output that Claude produced in the aggregator role (if Claude is set to be the aggregator).
+The next three tabs show the last output of each LLM that is produced when directly queried for an answer (with the ChatGPT, Claude or Gemini button), or when asked for a proposal (with the All button for example). The user query that was used to generate that LLM output precedes the output in the tab's chat window. The Claude tab contains only the output that was produced in these cases, it does not show the output that Claude produced in the aggregator role (if Claude is set to be the aggregator).
 
 ### Tab Attachments
 In this tab the user can select the pdf with a **Select PDF** button (store path for session; do **not** copy or persist the file).

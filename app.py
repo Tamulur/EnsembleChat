@@ -201,7 +201,7 @@ async def _handle_single(model_label: str, user_input: str, state: SessionState)
         reply_text = create_user_friendly_error_message(e, model_label)
     # Update chat history and per-model tab history
     state.chat_history.add_assistant(reply_text)
-    state.model_histories[model_label].append(("", reply_text))
+    state.model_histories[model_label].append((user_input, reply_text))
     save_chat(state.chat_id, state.chat_history.entries(), state.pdf_path)
     return state.chat_history.as_display()
 
@@ -532,7 +532,7 @@ def build_ui():
                                 if len(p_log) > 100:
                                     p_log = p_log[:97] + "..."
                                 print("[PROPOSAL]", m, p_log)
-                                s.model_histories[m].append(("", p))
+                                s.model_histories[m].append((last_user, p))
 
                             # Aggregator iterations
                             for iteration in range(1, 6):
@@ -596,7 +596,7 @@ def build_ui():
                                     # ---- DEBUG: log each synthesis proposal ----
                                     for m, p in zip(models, proposals):
                                         print("[SYNTHESIS PROPOSAL]", m, "\n", p, "\n---\n")
-                                        s.model_histories[m].append(("", p))
+                                        s.model_histories[m].append((last_user, p))
                                     continue
                                 else:
                                     # Fallback treat entire aggregator output as final
