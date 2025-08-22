@@ -1,4 +1,18 @@
 from typing import List, Dict
+import html
+import re
+
+_ZWSP = "\u200B"
+
+def _neutralize_angle_brackets(text: str) -> str:
+    if not isinstance(text, str):
+        return text
+    # Decode common entities first (e.g., &lt;planning&gt; -> <planning>)
+    decoded = html.unescape(text)
+    # Break potential HTML tags while preserving visible brackets
+    decoded = re.sub(r"<(?=[A-Za-z/])", "<" + _ZWSP, decoded)
+    decoded = re.sub(r"(?<=[A-Za-z0-9/])>", _ZWSP + ">", decoded)
+    return decoded
 
 
 class ChatHistory:
@@ -34,15 +48,15 @@ class ChatHistory:
                 # start a new conversation pair with no assistant yet
                 if user_msg is not None:
                     # Edge case: consecutive user messages without assistant reply
-                    display.append((user_msg, None))
+                    display.append((_neutralize_angle_brackets(user_msg), None))
                 user_msg = entry["text"]
             elif entry["role"] == "assistant":
                 if user_msg is None:
                     # Assistant reply without preceding user (shouldn't happen), skip
                     continue
-                display.append((user_msg, entry["text"]))
+                display.append((_neutralize_angle_brackets(user_msg), _neutralize_angle_brackets(entry["text"])))
                 user_msg = None
         # If there's a trailing user message without assistant yet, show it
         if user_msg is not None:
-            display.append((user_msg, None))
+            display.append((_neutralize_angle_brackets(user_msg), None))
         return display

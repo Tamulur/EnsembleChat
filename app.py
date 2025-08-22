@@ -7,6 +7,17 @@ import warnings
 from pathlib import Path
 from PIL import Image
 warnings.filterwarnings("ignore", category=UserWarning, message="You have not specified a value for the `type` parameter.*")
+import html
+import re
+_ZWSP = "\u200B"
+
+def _neutralize_angle_brackets_text(text: str):
+    if not isinstance(text, str):
+        return text
+    decoded = html.unescape(text)
+    decoded = re.sub(r"<(?=[A-Za-z/])", "<" + _ZWSP, decoded)
+    decoded = re.sub(r"(?<=[A-Za-z0-9/])>", _ZWSP + ">", decoded)
+    return decoded
 
 from utils import CostTracker, save_chat, timestamp_id, BUDGET_LIMIT, create_user_friendly_error_message
 from frontend_js import (
@@ -452,15 +463,23 @@ def build_ui():
                     def _cost_line(label: str) -> str:
                         return f"**Cost so far:** ${s.cost_tracker.get_model_cost(label):.4f}"
 
+                    def _sanitize_chatbot_pairs(pairs):
+                        sanitized = []
+                        for left, right in pairs:
+                            left_s = _neutralize_angle_brackets_text(left)
+                            right_s = _neutralize_angle_brackets_text(right)
+                            sanitized.append((left_s, right_s))
+                        return sanitized
+
                     def _model_and_cost_updates():
                         return (
                             gr.update(value=_cost_line("ChatGPT")),
-                            gr.update(value=s.model_histories["ChatGPT"]),
+                            gr.update(value=_sanitize_chatbot_pairs(s.model_histories["ChatGPT"])),
                             gr.update(value=_cost_line("Claude")),
-                            gr.update(value=s.model_histories["Claude"]),
+                            gr.update(value=_sanitize_chatbot_pairs(s.model_histories["Claude"])),
                             gr.update(value=_cost_line("Gemini")),
-                            gr.update(value=s.model_histories["Gemini"]),
-                            gr.update(value=s.resubmissions_history),
+                            gr.update(value=_sanitize_chatbot_pairs(s.model_histories["Gemini"])),
+                            gr.update(value=_sanitize_chatbot_pairs(s.resubmissions_history)),
                         )
                     # Retrieve last user message (just appended by _add_user_and_clear)
                     last_user = None
