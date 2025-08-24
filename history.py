@@ -1,6 +1,7 @@
 from typing import List, Dict
 import html
 import re
+from sanitization import neutralize_angle_brackets
 
 _ZWSP = "\u200B"
 
@@ -48,15 +49,15 @@ class ChatHistory:
                 # start a new conversation pair with no assistant yet
                 if user_msg is not None:
                     # Edge case: consecutive user messages without assistant reply
-                    display.append((_neutralize_angle_brackets(user_msg), None))
+                    display.append((neutralize_angle_brackets(user_msg), None))
                 user_msg = entry["text"]
             elif entry["role"] == "assistant":
                 if user_msg is None:
                     # Assistant reply without preceding user (shouldn't happen), skip
                     continue
-                display.append((_neutralize_angle_brackets(user_msg), _neutralize_angle_brackets(entry["text"])))
+                display.append((neutralize_angle_brackets(user_msg), neutralize_angle_brackets(entry["text"])) )
                 user_msg = None
         # If there's a trailing user message without assistant yet, show it
         if user_msg is not None:
-            display.append((_neutralize_angle_brackets(user_msg), None))
+            display.append((neutralize_angle_brackets(user_msg), None))
         return display

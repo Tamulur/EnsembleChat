@@ -21,7 +21,14 @@ MODEL_ID = "gpt-5"
 
 def set_model(label_or_id: str) -> str:
     global MODEL_ID
-    MODEL_ID = label_or_id
+    try:
+        # Accept friendly labels and coerce to canonical lowercase id
+        MODEL_ID = str(label_or_id).strip()
+        if MODEL_ID:
+            MODEL_ID = MODEL_ID.lower()
+    except Exception as exc:
+        print("[ERROR] OpenAI set_model exception:", exc)
+        MODEL_ID = "gpt-5"
     print(f"[CONFIG] OpenAI model set to: {MODEL_ID}")
     return MODEL_ID
 

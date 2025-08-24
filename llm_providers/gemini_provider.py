@@ -19,7 +19,11 @@ MODEL_ID = "gemini-2.5-pro"
 
 def set_model(label_or_id: str) -> str:
     global MODEL_ID
-    MODEL_ID = label_or_id
+    try:
+        MODEL_ID = str(label_or_id).strip()
+    except Exception as exc:
+        print("[ERROR] Gemini set_model exception:", exc)
+        MODEL_ID = "gemini-2.5-pro"
     print(f"[CONFIG] Gemini model set to: {MODEL_ID}")
     return MODEL_ID
 

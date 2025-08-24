@@ -15,7 +15,11 @@ MODEL_ID = "claude-sonnet-4-0"
 
 def set_model(label_or_id: str) -> str:
     global MODEL_ID
-    MODEL_ID = label_or_id
+    try:
+        MODEL_ID = str(label_or_id).strip()
+    except Exception as exc:
+        print("[ERROR] Anthropic set_model exception:", exc)
+        MODEL_ID = "claude-sonnet-4-0"
     print(f"[CONFIG] Claude model set to: {MODEL_ID}")
     return MODEL_ID
 
