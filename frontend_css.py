@@ -27,6 +27,9 @@ CSS_GLOBAL = (
     "#btn_gemini .icon, #btn_gemini img { height: 22px !important; width: auto; }\n"
     "#btn_chatgpt_gemini .icon, #btn_chatgpt_gemini img { height: 24px !important; width: auto; }\n"
     "#btn_all .icon, #btn_all img { height: 25px !important; width: auto; position: relative; top: -2.5px; }\n"
+    "/* New Chat button: position in top-right over tab row without taking space */\n"
+    "#btn_new_chat { position: absolute; top: 6px; right: 12px; z-index: 1000; width: auto; display: inline-block; }\n"
+    "#btn_new_chat button { width: auto !important; min-width: 110px; height: 32px; line-height: 24px; padding: 4px 12px; }\n"
 )
 
 

@@ -196,6 +196,110 @@ class SessionState:
         self.notifications_enabled: bool = bool(APP_SETTINGS.get("notifications", True))
 
 
+# --- Session persistence (robust across Gradio resets) ---
+SESSION_FILE = Path(__file__).parent / "Session.json"
+
+
+def _sanitize_pairs_for_display(pairs):
+    sanitized = []
+    for left, right in pairs:
+        left_s = _neutralize_angle_brackets_text(left)
+        right_s = _neutralize_angle_brackets_text(right)
+        sanitized.append((left_s, right_s))
+    return sanitized
+
+
+def _serialize_session(s: SessionState) -> dict:
+    return {
+        "chat_id": s.chat_id,
+        "pdf_path": s.pdf_path,
+        "chat_history": s.chat_history.entries(),
+        "model_histories": {
+            k: list(v) for k, v in s.model_histories.items()
+        },
+        "resubmissions_history": list(s.resubmissions_history),
+        "notifications_enabled": s.notifications_enabled,
+        "temperature": s.temperature,
+        "selected_models": {
+            "openai": s.selected_openai_model,
+            "claude": s.selected_claude_model,
+            "gemini": s.selected_gemini_model,
+            "aggregator": s.selected_aggregator,
+        },
+        # Keep a light summary of costs only
+        "cost_total": s.cost_tracker.total_cost,
+        "cost_per_model": s.cost_tracker.model_costs,
+    }
+
+
+def save_session(s: SessionState) -> None:
+    try:
+        with open(SESSION_FILE, "w", encoding="utf-8") as f:
+            json.dump(_serialize_session(s), f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[WARN] Failed to save session: {e}")
+
+
+def _apply_loaded_session(s: SessionState, data: dict) -> SessionState:
+    try:
+        chat_id = data.get("chat_id")
+        if isinstance(chat_id, str) and chat_id:
+            s.chat_id = chat_id
+        pdf_path = data.get("pdf_path")
+        if isinstance(pdf_path, str) and pdf_path:
+            s.pdf_path = pdf_path
+        entries = data.get("chat_history")
+        if isinstance(entries, list):
+            # Replace internal entries directly
+            s.chat_history._entries = []
+            for e in entries:
+                role = e.get("role")
+                text = e.get("text")
+                if role in ("user", "assistant") and isinstance(text, str):
+                    s.chat_history._entries.append({"role": role, "text": text})
+        mh = data.get("model_histories")
+        if isinstance(mh, dict):
+            for key in ["ChatGPT", "Claude", "Gemini"]:
+                seq = mh.get(key)
+                if isinstance(seq, list):
+                    normalized = []
+                    for item in seq:
+                        if isinstance(item, (list, tuple)) and len(item) == 2:
+                            a, b = item
+                            if isinstance(a, str) and isinstance(b, str):
+                                normalized.append((a, b))
+                    s.model_histories[key] = normalized
+        rh = data.get("resubmissions_history")
+        if isinstance(rh, list):
+            normalized_rh = []
+            for item in rh:
+                if isinstance(item, (list, tuple)) and len(item) == 2:
+                    a, b = item
+                    if isinstance(a, str) and isinstance(b, str):
+                        normalized_rh.append((a, b))
+            s.resubmissions_history = normalized_rh
+        notif = data.get("notifications_enabled")
+        if isinstance(notif, bool):
+            s.notifications_enabled = notif
+        temp = data.get("temperature")
+        if isinstance(temp, (int, float)):
+            s.temperature = float(temp)
+        # Do not override provider selections from Settings.json; those persist separately
+    except Exception as e:
+        print(f"[WARN] Failed to apply loaded session: {e}")
+    return s
+
+
+def load_session_from_disk() -> dict | None:
+    if SESSION_FILE.exists():
+        try:
+            with open(SESSION_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[WARN] Failed to load session: {e}")
+    return None
+
+
 async def _handle_single(model_label: str, user_input: str, state: SessionState):
     try:
         reply_text = await call_proposer(
@@ -219,9 +323,27 @@ async def _handle_single(model_label: str, user_input: str, state: SessionState)
 
 def build_ui():
     from frontend_css import CSS_GLOBAL
+    # Prepare initial state (load from disk if present)
+    initial_state = SessionState()
+    loaded = load_session_from_disk()
+    if isinstance(loaded, dict):
+        initial_state = _apply_loaded_session(initial_state, loaded)
+        # Bring back cost totals if present
+        try:
+            if isinstance(loaded.get("cost_total"), (int, float)):
+                initial_state.cost_tracker.total_cost = float(loaded.get("cost_total"))
+            if isinstance(loaded.get("cost_per_model"), dict):
+                for k, v in loaded.get("cost_per_model", {}).items():
+                    if isinstance(v, (int, float)):
+                        initial_state.cost_tracker.model_costs[k] = float(v)
+        except Exception:
+            pass
+
     with gr.Blocks(css=CSS_GLOBAL) as demo:
         # gr.Markdown("## EnsembleChat")
-        state = gr.State(SessionState())
+        state = gr.State(initial_state)
+        # Top-right "New Chat" button (absolutely positioned via CSS, outside Tabs to avoid tab duplication)
+        new_chat_btn = gr.Button(value="New Chat", elem_id="btn_new_chat")
 
         # ---------- TABS LAYOUT ----------
         with gr.Tabs(selected=4) as tabs:
@@ -232,7 +354,8 @@ def build_ui():
                     elem_id="chat_interface",
                     autoscroll=False,
                     show_label=False,
-                    latex_delimiters=LATEX_DELIMITERS
+                    latex_delimiters=LATEX_DELIMITERS,
+                    value=initial_state.chat_history.as_display(),
                 )
                 # Whenever the chat value changes, align the beginning of the newest
                 # assistant message to the top of the visible chat area.
@@ -264,33 +387,33 @@ def build_ui():
             MODEL_TAB_HEIGHT = 700
 
             with gr.Tab("ChatGPT"):
-                chatgpt_cost = gr.Markdown("**Cost so far:** $0.0000", elem_id="chatgpt_cost")
+                chatgpt_cost = gr.Markdown(f"**Cost so far:** ${initial_state.cost_tracker.get_model_cost('ChatGPT'):.4f}", elem_id="chatgpt_cost")
                 chatgpt_view = gr.Chatbot(
                     label="ChatGPT Output",
                     height=MODEL_TAB_HEIGHT,
-                    value=[],
+                    value=_sanitize_pairs_for_display(initial_state.model_histories["ChatGPT"]),
                     autoscroll=False,
                     elem_id="chatgpt_view",
                     latex_delimiters=LATEX_DELIMITERS
                 )
 
             with gr.Tab("Claude"):
-                claude_cost = gr.Markdown("**Cost so far:** $0.0000", elem_id="claude_cost")
+                claude_cost = gr.Markdown(f"**Cost so far:** ${initial_state.cost_tracker.get_model_cost('Claude'):.4f}", elem_id="claude_cost")
                 claude_view = gr.Chatbot(
                     label="Claude Output",
                     height=MODEL_TAB_HEIGHT,
-                    value=[],
+                    value=_sanitize_pairs_for_display(initial_state.model_histories["Claude"]),
                     autoscroll=False,
                     elem_id="claude_view",
                     latex_delimiters=LATEX_DELIMITERS
                 )
 
             with gr.Tab("Gemini"):
-                gemini_cost = gr.Markdown("**Cost so far:** $0.0000", elem_id="gemini_cost")
+                gemini_cost = gr.Markdown(f"**Cost so far:** ${initial_state.cost_tracker.get_model_cost('Gemini'):.4f}", elem_id="gemini_cost")
                 gemini_view = gr.Chatbot(
                     label="Gemini Output",
                     height=MODEL_TAB_HEIGHT,
-                    value=[],
+                    value=_sanitize_pairs_for_display(initial_state.model_histories["Gemini"]),
                     autoscroll=False,
                     elem_id="gemini_view",
                     latex_delimiters=LATEX_DELIMITERS)
@@ -298,13 +421,14 @@ def build_ui():
             # ---- Attachments tab ----
             with gr.Tab("Attachments"):
                 with gr.Row():
-                    pdf_input = gr.File(label="Select PDF", file_types=[".pdf"], type="filepath")
+                    initial_pdf_value = initial_state.pdf_path if (initial_state.pdf_path and os.path.isfile(initial_state.pdf_path)) else None
+                    pdf_input = gr.File(label="Select PDF", file_types=[".pdf"], type="filepath", value=initial_pdf_value)
                 # Hidden component to signal tab switch
                 tab_switch_signal = gr.Textbox(value="", visible=False)
 
             # ---- Resubmissions tab ----
             with gr.Tab("Resubmissions"):
-                resub_view = gr.Chatbot(label="Resubmissions", height=800, value=[], autoscroll=False, elem_id="resub_view",
+                resub_view = gr.Chatbot(label="Resubmissions", height=800, value=_sanitize_pairs_for_display(initial_state.resubmissions_history), autoscroll=False, elem_id="resub_view",
                                         latex_delimiters=LATEX_DELIMITERS)
 
             # ---- Settings tab ----
@@ -358,6 +482,7 @@ def build_ui():
             if file is not None:
                 s.pdf_path = file
                 print(f"[DEBUG] PDF selected: {file}, sending switch_tab signal")
+                save_session(s)
                 return s, "switch_tab"  # Signal to switch tab
             print(f"[DEBUG] No PDF selected, file is: {file}")
             return s, ""  # No signal if no file
@@ -379,6 +504,7 @@ def build_ui():
             # Persist
             APP_SETTINGS["openai_model"] = selection
             save_settings(APP_SETTINGS)
+            save_session(s)
             return s
 
         openai_model_dropdown.change(_set_openai_model, inputs=[openai_model_dropdown, state], outputs=state)
@@ -388,6 +514,7 @@ def build_ui():
             set_claude_model(selection)
             APP_SETTINGS["claude_model"] = selection
             save_settings(APP_SETTINGS)
+            save_session(s)
             return s
 
         claude_model_dropdown.change(_set_claude_model, inputs=[claude_model_dropdown, state], outputs=state)
@@ -397,6 +524,7 @@ def build_ui():
             set_gemini_model(selection)
             APP_SETTINGS["gemini_model"] = selection
             save_settings(APP_SETTINGS)
+            save_session(s)
             return s
 
         gemini_model_dropdown.change(_set_gemini_model, inputs=[gemini_model_dropdown, state], outputs=state)
@@ -405,6 +533,7 @@ def build_ui():
             s.selected_aggregator = selection
             APP_SETTINGS["aggregator"] = selection
             save_settings(APP_SETTINGS)
+            save_session(s)
             return s
 
         aggregator_dropdown.change(_set_aggregator, inputs=[aggregator_dropdown, state], outputs=state)
@@ -416,6 +545,7 @@ def build_ui():
                 s.temperature = 0.7
             APP_SETTINGS["temperature"] = s.temperature
             save_settings(APP_SETTINGS)
+            save_session(s)
             return s
 
         temperature_slider.change(_set_temperature, inputs=[temperature_slider, state], outputs=state)
@@ -424,9 +554,65 @@ def build_ui():
             s.notifications_enabled = bool(enabled)
             APP_SETTINGS["notifications"] = s.notifications_enabled
             save_settings(APP_SETTINGS)
+            save_session(s)
             return s
 
         notifications_checkbox.change(_set_notifications, inputs=[notifications_checkbox, state], outputs=state)
+
+        # --- New Chat (reset session) ---
+        def _reset_session(s: SessionState):
+            try:
+                if SESSION_FILE.exists():
+                    SESSION_FILE.unlink(missing_ok=True)
+            except Exception as e:
+                print(f"[WARN] Failed to delete session file: {e}")
+            # Fresh state
+            s = SessionState()
+            # Apply provider selections to backend
+            try:
+                set_openai_model(s.selected_openai_model)
+                set_claude_model(s.selected_claude_model)
+                set_gemini_model(s.selected_gemini_model)
+            except Exception:
+                pass
+            # Persist empty fresh session
+            save_session(s)
+            # Compose outputs to clear all views
+            def _cost_line(label: str) -> str:
+                return f"**Cost so far:** ${s.cost_tracker.get_model_cost(label):.4f}"
+            return (
+                s.chat_history.as_display(),                 # chat
+                gr.update(value="", visible=False),         # status_display
+                gr.update(value=_cost_line("ChatGPT")),      # chatgpt_cost
+                gr.update(value=[]),                         # chatgpt_view
+                gr.update(value=_cost_line("Claude")),      # claude_cost
+                gr.update(value=[]),                         # claude_view
+                gr.update(value=_cost_line("Gemini")),      # gemini_cost
+                gr.update(value=[]),                         # gemini_view
+                gr.update(value=[]),                         # resub_view
+                "",                                         # notify_flag
+                s,                                           # state
+                gr.update(value=None),                       # pdf_input (clear)
+            )
+
+        new_chat_btn.click(
+            _reset_session,
+            inputs=state,
+            outputs=[
+                chat,
+                status_display,
+                chatgpt_cost,
+                chatgpt_view,
+                claude_cost,
+                claude_view,
+                gemini_cost,
+                gemini_view,
+                resub_view,
+                notify_flag,
+                state,
+                pdf_input,
+            ],
+        )
 
         # --- User message handling ---
         def _add_user_and_clear(user_input: str, s: SessionState):
@@ -439,10 +625,12 @@ def build_ui():
             if not user_input:
                 # Empty input → attempt redo (delete last assistant reply)
                 s.chat_history.remove_last_assistant()
+                save_session(s)
                 return s.chat_history.as_display(), "", s
 
             # Normal new user input
             s.chat_history.add_user(user_input)
+            save_session(s)
             return s.chat_history.as_display(), "", s
 
 
@@ -458,7 +646,13 @@ def build_ui():
             
             # Stage 2: long-running processing with status updates
             def _make_process(lbl):
-                async def _handler(s: SessionState):
+                async def _handler(s: SessionState, current_file):
+                    # Rebind PDF from client-side file input if present (survives browser UI)
+                    try:
+                        if current_file:
+                            s.pdf_path = current_file
+                    except Exception:
+                        pass
                     # Helpers to build update objects for each model tab
                     def _cost_line(label: str) -> str:
                         return f"**Cost so far:** ${s.cost_tracker.get_model_cost(label):.4f}"
@@ -502,6 +696,7 @@ def build_ui():
                     if lbl in ["ChatGPT", "Claude", "Gemini"]:
                         yield s.chat_history.as_display(), gr.update(value="**Status:** Waiting for " + lbl + "…", visible=True), *_model_and_cost_updates(), ""
                         result = await _handle_single(lbl, last_user, s)
+                        save_session(s)
                         yield result, gr.update(value="", visible=False), *_model_and_cost_updates(), ("done" if s.notifications_enabled else "")
                     else:
                         models = MULTI_BUTTON_MODELS[lbl]
@@ -580,6 +775,7 @@ def build_ui():
                                     
                                     s.chat_history.add_assistant(fallback_reply.strip())
                                     save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
+                                    save_session(s)
                                     yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), ("done" if s.notifications_enabled else "")
                                     return
 
@@ -588,6 +784,7 @@ def build_ui():
                                     final_reply = text_after_first_line(agg_out)
                                     s.chat_history.add_assistant(final_reply)
                                     save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
+                                    save_session(s)
                                     yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), ("done" if s.notifications_enabled else "")
                                     return
                                 elif "request synthesis from proposers" in first and iteration < 5:
@@ -616,11 +813,13 @@ def build_ui():
                                     for m, p in zip(models, proposals):
                                         print("[SYNTHESIS PROPOSAL]", m, "\n", p, "\n---\n")
                                         s.model_histories[m].append((last_user, p))
+                                    save_session(s)
                                     continue
                                 else:
                                     # Fallback treat entire aggregator output as final
                                     s.chat_history.add_assistant(agg_out)
                                     save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
+                                    save_session(s)
                                     yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), ("done" if s.notifications_enabled else "")
                                     return
                         
@@ -653,7 +852,7 @@ def build_ui():
 
             evt = click_event.then(
                 _make_process(btn.value),
-                inputs=state,
+                inputs=[state, pdf_input],
                 outputs=[
                     chat,
                     status_display,
