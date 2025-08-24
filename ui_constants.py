@@ -28,7 +28,6 @@ LATEX_DELIMITERS = [
     {"left": "$", "right": "$", "display": False},
     {"left": "\\[", "right": "\\]", "display": True},
     {"left": "\\(", "right": "\\)", "display": False},
-    {"left": "[", "right": "]", "display": True},  # Support OpenAI's format
 ]
 
 
