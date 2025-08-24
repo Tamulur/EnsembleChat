@@ -1,4 +1,5 @@
 import os
+import json
 from typing import Dict, List, Optional, Tuple
 
 try:
@@ -56,7 +57,7 @@ async def _get_openai_vector_store_id(pdf_path: str) -> str:
         raise LLMError(f"Failed to prepare OpenAI vector store: {exc}") from exc
 
 
-async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, temperature: float = 0.7) -> Tuple[str, int, int]:
+async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, temperature: float = 0.7) -> Tuple[str, int, int, str]:
     if _openai_client is None:
         raise LLMError("openai package not installed or AsyncOpenAI not available")
 
@@ -111,8 +112,6 @@ async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, tempe
         else:
             raise
 
-    print(f"Full OpenAI response (MODEL_ID={MODEL_ID}):", resp)
-
     text = ""
     if hasattr(resp, "output") and resp.output:
         try:
@@ -156,6 +155,24 @@ async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, tempe
     else:
         print("information about cached_tokens was not available for OpenAI")
 
-    return text, prompt_tokens, completion_tokens
+    # Try to serialize the full raw response for logging
+    raw_text = ""
+    try:
+        if hasattr(resp, "model_dump_json") and callable(getattr(resp, "model_dump_json")):
+            raw_text = resp.model_dump_json(indent=2)  # type: ignore[attr-defined]
+        elif hasattr(resp, "to_dict") and callable(getattr(resp, "to_dict")):
+            raw_text = json.dumps(resp.to_dict(), indent=2, default=str)
+        elif isinstance(resp, dict):
+            raw_text = json.dumps(resp, indent=2, default=str)
+        else:
+            # Fallback string representation
+            raw_text = str(resp)
+    except Exception:
+        try:
+            raw_text = str(resp)
+        except Exception:
+            raw_text = "[unserializable OpenAI response]"
+
+    return text, prompt_tokens, completion_tokens, raw_text
 
 

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import Dict, List, Optional, Tuple
 
 try:
@@ -50,7 +51,7 @@ async def _get_gemini_file_resource(pdf_path: str):
     return file_resource
 
 
-async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, temperature: float = 0.7) -> Tuple[str, int, int]:
+async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, temperature: float = 0.7) -> Tuple[str, int, int, str]:
     if genai is None:
         raise LLMError("google-genai package not installed")
 
@@ -82,9 +83,21 @@ async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, tempe
         text = getattr(resp, "text", None) or str(resp)
         prompt_tokens = resp.usage_metadata.prompt_token_count
         completion_tokens = resp.usage_metadata.candidates_token_count
-        return text, prompt_tokens, completion_tokens
 
-    text, prompt_tokens, completion_tokens = await asyncio.to_thread(_send_message)
-    return text, prompt_tokens, completion_tokens
+        # serialize raw
+        try:
+            if hasattr(resp, "to_dict") and callable(getattr(resp, "to_dict")):
+                raw_text_local = json.dumps(resp.to_dict(), indent=2, default=str)
+            elif isinstance(resp, dict):
+                raw_text_local = json.dumps(resp, indent=2, default=str)
+            else:
+                raw_text_local = str(resp)
+        except Exception:
+            raw_text_local = str(resp)
+
+        return text, prompt_tokens, completion_tokens, raw_text_local
+
+    text, prompt_tokens, completion_tokens, raw_text = await asyncio.to_thread(_send_message)
+    return text, prompt_tokens, completion_tokens, raw_text
 
 

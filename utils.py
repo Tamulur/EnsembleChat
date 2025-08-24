@@ -131,3 +131,32 @@ def create_user_friendly_error_message(error: Exception, model_label: str) -> st
 
 def timestamp_id() -> str:
     return datetime.utcnow().strftime("%Y%m%d-%H%M%S-%f")
+
+
+# --- Logging helpers ---
+
+def ensure_logs_dir():
+    if not os.path.exists("RawProposerLogs"):
+        os.makedirs("RawProposerLogs", exist_ok=True)
+
+
+def write_last_raw_response(model_label: str, raw_text: str) -> None:
+    """Write full raw response text to RawProposerLogs/<proposer>.txt.
+
+    Overwrites the file each time to reflect the last raw response only.
+    """
+    ensure_logs_dir()
+    # Canonicalize proposer filename casing
+    lower = model_label.lower()
+    canonical = {
+        "chatgpt": "ChatGPT",
+        "claude": "Claude",
+        "gemini": "Gemini",
+    }.get(lower, model_label)
+    filename = f"{canonical}.txt"
+    path = os.path.join("RawProposerLogs", filename)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(raw_text if raw_text is not None else "")
+    except Exception as exc:
+        print(f"[WARN] Failed to write raw response log for {model_label}: {exc}")

@@ -57,7 +57,7 @@ async def call_aggregator(
     # Use selected provider as aggregator
     # Use more retries for overload-prone scenarios, but keep it simple
     try:
-        response_text, pt, ct = await call_llm(
+        response_text, pt, ct, _raw = await call_llm(
             aggregator_label,
             agg_messages,
             pdf_path=pdf_path,
@@ -72,7 +72,7 @@ async def call_aggregator(
         if ("529" in error_str or "overloaded" in error_str) and iteration == 1:
             print(f"[AGGREGATOR] Detected overload error on first attempt, retrying with more attempts...")
             # Only retry with more attempts on the first iteration to avoid endless loops
-            response_text, pt, ct = await call_llm(
+            response_text, pt, ct, _raw = await call_llm(
                 aggregator_label,
                 agg_messages,
                 pdf_path=pdf_path,

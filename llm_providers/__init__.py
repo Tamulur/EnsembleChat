@@ -25,7 +25,7 @@ async def call_llm(
     pdf_path: Optional[str] = None,
     retries: int = 1,
     temperature: float = 0.7,
-) -> Tuple[str, int, int]:
+) -> Tuple[str, int, int, str]:
     async def _inner():
         ml = model_label.lower()
         if ml == "chatgpt":

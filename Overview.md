@@ -170,4 +170,5 @@ Prompts/
 ## Minimal Logging
 
 * Write chat transcripts (user inputs + final replies) to `Chats/<session_id>.md`.
+* Log each proposer's last raw response in 'RawProposerLogs/<proposer>.txt'.
 * Track per-turn timing (proposers total, aggregator per iteration) and the cost estimate counters.

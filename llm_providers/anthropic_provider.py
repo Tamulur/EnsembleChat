@@ -1,4 +1,5 @@
 import os
+import json
 from typing import Dict, List, Optional, Tuple
 
 try:
@@ -52,7 +53,7 @@ async def _get_anthropic_file_content(pdf_path: str) -> dict:
     return document_content
 
 
-async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, temperature: float = 0.7) -> Tuple[str, int, int]:
+async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, temperature: float = 0.7) -> Tuple[str, int, int, str]:
     if anthropic is None:
         raise LLMError("anthropic package not installed")
 
@@ -96,6 +97,24 @@ async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, tempe
 
     resp = await client.messages.create(**api_params)
     answer = next((blk.text for blk in resp.content if blk.type == "text"), "")
-    return answer, resp.usage.input_tokens, resp.usage.output_tokens
+
+    # Serialize raw response
+    raw_text = ""
+    try:
+        if hasattr(resp, "model_dump_json") and callable(getattr(resp, "model_dump_json")):
+            raw_text = resp.model_dump_json(indent=2)  # type: ignore[attr-defined]
+        elif hasattr(resp, "to_dict") and callable(getattr(resp, "to_dict")):
+            raw_text = json.dumps(resp.to_dict(), indent=2, default=str)
+        elif isinstance(resp, dict):
+            raw_text = json.dumps(resp, indent=2, default=str)
+        else:
+            raw_text = str(resp)
+    except Exception:
+        try:
+            raw_text = str(resp)
+        except Exception:
+            raw_text = "[unserializable Anthropic response]"
+
+    return answer, resp.usage.input_tokens, resp.usage.output_tokens, raw_text
 
 
