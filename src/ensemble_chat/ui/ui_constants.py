@@ -1,8 +1,9 @@
 from pathlib import Path
+from ensemble_chat.core.paths import project_root
 
 
 # Constants
-ICON_DIR = Path(__file__).parent / "Icons"
+ICON_DIR = project_root() / "Icons"
 
 BUTTONS = [
     "ChatGPT",

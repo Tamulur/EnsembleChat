@@ -3,6 +3,7 @@ import time
 from datetime import datetime
 from typing import List, Dict
 
+
 PRICES_PER_1K_TOKENS = {
     # Prices per 1k tokens; separate input vs output to allow asymmetric pricing
     "chatgpt": {"input": 0.002, "output": 0.008},
@@ -160,3 +161,5 @@ def write_last_raw_response(model_label: str, raw_text: str) -> None:
             f.write(raw_text if raw_text is not None else "")
     except Exception as exc:
         print(f"[WARN] Failed to write raw response log for {model_label}: {exc}")
+
+

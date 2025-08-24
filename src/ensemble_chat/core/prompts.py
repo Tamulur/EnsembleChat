@@ -1,7 +1,10 @@
 import os
 from functools import lru_cache
+from ensemble_chat.core.paths import project_root
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+ROOT_DIR = str(project_root())
+
 
 @lru_cache(maxsize=32)
 def _read(path: str) -> str:
@@ -82,3 +85,5 @@ def aggregator_user() -> str:
 
 def aggregator_force_user() -> str:
     return _with_user_placeholders(_read(os.path.join("Prompts", "AggregatorForceReplyUserPrompt.txt")))
+
+

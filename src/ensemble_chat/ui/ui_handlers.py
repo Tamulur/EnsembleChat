@@ -2,8 +2,8 @@ import asyncio
 import os
 import gradio as gr
 
-from llm_providers import set_openai_model, set_claude_model, set_gemini_model
-from frontend_js import (
+from ensemble_chat.llm_providers import set_openai_model, set_claude_model, set_gemini_model
+from ensemble_chat.ui.frontend_js import (
     JS_ALIGN_ON_CHANGE,
     JS_SCROLL_FIX_AFTER_EVENT,
     JS_PRESERVE_TAB_SCROLL,
@@ -12,15 +12,15 @@ from frontend_js import (
     JS_SELECT_TAB_ATTACHMENTS_ON_LOAD,
     JS_SWITCH_TO_CHAT_TAB_IF_SIGNAL,
 )
-from history import ChatHistory
-from aggregator import call_aggregator, first_non_empty_line, text_after_first_line, format_proposal_packet
-from proposer import call_proposer, call_synthesis
-from utils import CostTracker, save_chat, create_user_friendly_error_message
-from model_configs import MODEL_CONFIGS
-from settings_manager import APP_SETTINGS, save_settings
-from session_state import SessionState, save_session, load_session_from_disk, _apply_loaded_session, _sanitize_pairs_for_display
-from ui_constants import MULTI_BUTTON_MODELS, LATEX_DELIMITERS
-from conversation import handle_single
+from ensemble_chat.core.history import ChatHistory
+from ensemble_chat.core.aggregator import call_aggregator, first_non_empty_line, text_after_first_line, format_proposal_packet
+from ensemble_chat.core.proposer import call_proposer, call_synthesis
+from ensemble_chat.core.utils import CostTracker, save_chat, create_user_friendly_error_message
+from ensemble_chat.core.model_configs import MODEL_CONFIGS
+from ensemble_chat.core.settings_manager import APP_SETTINGS, save_settings
+from ensemble_chat.core.session_state import SessionState, save_session, load_session_from_disk, _apply_loaded_session, _sanitize_pairs_for_display
+from ensemble_chat.ui.ui_constants import MULTI_BUTTON_MODELS, LATEX_DELIMITERS
+from ensemble_chat.core.conversation import handle_single
 
 
 def wire_events(demo: gr.Blocks, ui: dict):
@@ -126,7 +126,7 @@ def wire_events(demo: gr.Blocks, ui: dict):
 
     # --- New Chat (reset session) ---
     def _reset_session(s: SessionState):
-        from session_state import SESSION_FILE
+        from ensemble_chat.core.session_state import SESSION_FILE
         try:
             if SESSION_FILE.exists():
                 SESSION_FILE.unlink(missing_ok=True)

@@ -1,14 +1,7 @@
 import os
-import sys
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, message="You have not specified a value for the `type` parameter.*")
-
-# Ensure src/ is on sys.path, so `import ensemble_chat` works when running app.py directly
-ROOT = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(ROOT, "src")
-if SRC not in sys.path:
-    sys.path.insert(0, SRC)
 
 from ensemble_chat.ui.ui import build_ui
 

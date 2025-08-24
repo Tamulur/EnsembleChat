@@ -2,9 +2,11 @@ import json
 from pathlib import Path
 from typing import List, Dict
 
+from ensemble_chat.core.paths import project_root
+
 
 # --- Configuration loading for model dropdowns ---
-CONFIG_DIR = Path(__file__).parent / "Configurations"
+CONFIG_DIR = project_root() / "Configurations"
 
 
 DEFAULT_MODELS: Dict[str, List[str]] = {

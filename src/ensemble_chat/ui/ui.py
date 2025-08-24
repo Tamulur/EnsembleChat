@@ -1,10 +1,10 @@
 import gradio as gr
 
-from model_configs import MODEL_CONFIGS
-from settings_manager import APP_SETTINGS
-from session_state import SessionState, load_session_from_disk, _apply_loaded_session
-from ui_layout import build_base_layout
-from ui_handlers import wire_events
+from ensemble_chat.core.model_configs import MODEL_CONFIGS
+from ensemble_chat.core.settings_manager import APP_SETTINGS
+from ensemble_chat.core.session_state import SessionState, load_session_from_disk, _apply_loaded_session
+from ensemble_chat.ui.ui_layout import build_base_layout
+from ensemble_chat.ui.ui_handlers import wire_events
 
 
 def build_ui():

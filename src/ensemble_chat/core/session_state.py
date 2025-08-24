@@ -2,14 +2,15 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from history import ChatHistory
-from sanitization import sanitize_pairs_for_display
-from utils import CostTracker, timestamp_id
+from ensemble_chat.core.history import ChatHistory
+from ensemble_chat.core.sanitization import sanitize_pairs_for_display
+from ensemble_chat.core.utils import CostTracker, timestamp_id
+from ensemble_chat.core.paths import project_root
 
 
 def _neutralize_angle_brackets_text(text: str):
     # Backwards-compatible alias
-    from sanitization import neutralize_angle_brackets
+    from ensemble_chat.core.sanitization import neutralize_angle_brackets
     return neutralize_angle_brackets(text)
 
 
@@ -37,7 +38,7 @@ class SessionState:
 
 
 # --- Session persistence (robust across Gradio resets) ---
-SESSION_FILE = Path(__file__).parent / "Session.json"
+SESSION_FILE = project_root() / "Session.json"
 
 
 def _serialize_session(s: SessionState) -> Dict[str, Any]:

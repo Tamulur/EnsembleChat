@@ -1,5 +1,3 @@
-from typing import Dict, List, Optional, Tuple
-
 from .shared import LLMError, retry
 from . import openai_provider as _openai
 from . import anthropic_provider as _anthropic
@@ -20,12 +18,12 @@ def set_gemini_model(label_or_id: str) -> str:
 
 async def call_llm(
     model_label: str,
-    messages: List[Dict[str, str]],
+    messages: list[dict[str, str]],
     *,
-    pdf_path: Optional[str] = None,
+    pdf_path: str | None = None,
     retries: int = 1,
     temperature: float = 0.7,
-) -> Tuple[str, int, int, str]:
+) -> tuple[str, int, int, str]:
     async def _inner():
         ml = model_label.lower()
         if ml == "chatgpt":
@@ -41,6 +39,7 @@ async def call_llm(
         return await retry(_inner, retries=retries, context=f"model={model_label}")
     except Exception as e:
         raise LLMError(str(e))
+
 
 __all__ = [
     "LLMError",

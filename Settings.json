@@ -1,8 +1,0 @@
-{
-  "openai_model": "gpt-5",
-  "claude_model": "claude-sonnet-4-0",
-  "gemini_model": "gemini-2.5-pro",
-  "aggregator": "Claude",
-  "temperature": 0.7,
-  "notifications": true
-}

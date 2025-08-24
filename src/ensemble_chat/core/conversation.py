@@ -1,8 +1,8 @@
 from typing import List
 
-from proposer import call_proposer
-from utils import save_chat, create_user_friendly_error_message
-from session_state import SessionState
+from ensemble_chat.core.proposer import call_proposer
+from ensemble_chat.core.utils import save_chat, create_user_friendly_error_message
+from ensemble_chat.core.session_state import SessionState
 
 
 async def handle_single(model_label: str, user_input: str, state: SessionState) -> List:

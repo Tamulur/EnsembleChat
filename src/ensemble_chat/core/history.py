@@ -1,9 +1,10 @@
 from typing import List, Dict
 import html
 import re
-from sanitization import neutralize_angle_brackets
+from ensemble_chat.core.sanitization import neutralize_angle_brackets
 
 _ZWSP = "\u200B"
+
 
 def _neutralize_angle_brackets(text: str) -> str:
     if not isinstance(text, str):
@@ -61,3 +62,5 @@ class ChatHistory:
         if user_msg is not None:
             display.append((neutralize_angle_brackets(user_msg), None))
         return display
+
+

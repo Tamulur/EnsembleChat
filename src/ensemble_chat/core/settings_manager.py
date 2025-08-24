@@ -2,11 +2,12 @@ import json
 from pathlib import Path
 from typing import Dict, Any
 
-from model_configs import MODEL_CONFIGS
+from ensemble_chat.core.model_configs import MODEL_CONFIGS
+from ensemble_chat.core.paths import project_root
 
 
-# --- Settings persistence (Settings.json) ---
-SETTINGS_FILE = Path(__file__).parent / "Settings.json"
+# --- Settings persistence (Configurations/Settings.json) ---
+SETTINGS_FILE = project_root() / "Configurations" / "Settings.json"
 
 
 def _default_settings() -> Dict[str, Any]:

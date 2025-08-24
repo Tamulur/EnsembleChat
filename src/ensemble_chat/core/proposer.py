@@ -1,9 +1,9 @@
 import asyncio
 from typing import List, Dict, Optional
 
-import prompts
-from llm_providers import call_llm, LLMError
-from utils import CostTracker, write_last_raw_response
+from ensemble_chat.core import prompts
+from ensemble_chat.llm_providers import call_llm, LLMError
+from ensemble_chat.core.utils import CostTracker, write_last_raw_response
 
 
 async def call_proposer(model_label: str, user_input: str, chat_history: List[Dict], pdf_path: Optional[str],
@@ -60,3 +60,5 @@ async def call_synthesis(
     except Exception:
         pass
     return text
+
+

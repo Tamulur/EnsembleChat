@@ -1,10 +1,10 @@
 import os
 import gradio as gr
 
-from frontend_css import CSS_GLOBAL
-from frontend_js import JS_ALIGN_ON_CHANGE
-from session_state import SessionState, _sanitize_pairs_for_display
-from ui_constants import ICON_MAP, BUTTONS, LATEX_DELIMITERS
+from ensemble_chat.ui.frontend_css import CSS_GLOBAL
+from ensemble_chat.ui.frontend_js import JS_ALIGN_ON_CHANGE
+from ensemble_chat.core.session_state import SessionState, _sanitize_pairs_for_display
+from ensemble_chat.ui.ui_constants import ICON_MAP, BUTTONS, LATEX_DELIMITERS
 
 
 def build_base_layout(initial_state: SessionState, app_settings, model_configs, wire=None):

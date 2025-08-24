@@ -236,6 +236,7 @@ JS_SELECT_TAB_ATTACHMENTS_ON_LOAD = """
 }
 """
 
+
 # Switch to the "Chat" tab after a PDF is selected
 JS_SWITCH_TO_CHAT_TAB = """
 () => {
