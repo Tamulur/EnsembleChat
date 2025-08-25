@@ -1,20 +1,5 @@
 from typing import List, Dict
-import html
-import re
 from ensemble_chat.core.sanitization import neutralize_angle_brackets
-
-_ZWSP = "\u200B"
-
-
-def _neutralize_angle_brackets(text: str) -> str:
-    if not isinstance(text, str):
-        return text
-    # Decode common entities first (e.g., &lt;planning&gt; -> <planning>)
-    decoded = html.unescape(text)
-    # Break potential HTML tags while preserving visible brackets
-    decoded = re.sub(r"<(?=[A-Za-z/])", "<" + _ZWSP, decoded)
-    decoded = re.sub(r"(?<=[A-Za-z0-9/])>", _ZWSP + ">", decoded)
-    return decoded
 
 
 class ChatHistory:

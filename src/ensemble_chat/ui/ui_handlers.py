@@ -12,15 +12,12 @@ from ensemble_chat.ui.frontend_js import (
     JS_SELECT_TAB_ATTACHMENTS_ON_LOAD,
     JS_SWITCH_TO_CHAT_TAB_IF_SIGNAL,
 )
-from ensemble_chat.core.history import ChatHistory
-from ensemble_chat.core.aggregator import call_aggregator, first_non_empty_line, text_after_first_line, format_proposal_packet
-from ensemble_chat.core.proposer import call_proposer, call_synthesis
-from ensemble_chat.core.utils import CostTracker, save_chat, create_user_friendly_error_message
+from ensemble_chat.core.engine import run_multi, run_single
 from ensemble_chat.core.model_configs import MODEL_CONFIGS
 from ensemble_chat.core.settings_manager import APP_SETTINGS, save_settings
 from ensemble_chat.core.session_state import SessionState, save_session, load_session_from_disk, _apply_loaded_session, _sanitize_pairs_for_display
 from ensemble_chat.ui.ui_constants import MULTI_BUTTON_MODELS, LATEX_DELIMITERS
-from ensemble_chat.core.conversation import handle_single
+ 
 
 
 def wire_events(demo: gr.Blocks, ui: dict):
@@ -245,149 +242,69 @@ def wire_events(demo: gr.Blocks, ui: dict):
                     return
 
                 if lbl in ["ChatGPT", "Claude", "Gemini"]:
-                    yield s.chat_history.as_display(), gr.update(value="**Status:** Waiting for " + lbl + "…", visible=True), *_model_and_cost_updates(), ""
-                    result = await handle_single(lbl, last_user, s)
-                    save_session(s)
-                    yield result, gr.update(value="", visible=False), *_model_and_cost_updates(), ("done" if s.notifications_enabled else "")
+                    async for event in run_single(lbl, last_user, s):
+                        save_session(s)
+                        if event.get("type") == "status":
+                            yield (
+                                s.chat_history.as_display(),
+                                gr.update(value=event.get("text", ""), visible=True),
+                                gr.update(value=_cost_line("ChatGPT")),
+                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["ChatGPT"])),
+                                gr.update(value=_cost_line("Claude")),
+                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Claude"])),
+                                gr.update(value=_cost_line("Gemini")),
+                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Gemini"])),
+                                gr.update(value=_sanitize_pairs_for_display(s.resubmissions_history)),
+                                "",
+                            )
+                        elif event.get("type") == "final":
+                            yield (
+                                s.chat_history.as_display(),
+                                gr.update(value="", visible=False),
+                                gr.update(value=_cost_line("ChatGPT")),
+                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["ChatGPT"])),
+                                gr.update(value=_cost_line("Claude")),
+                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Claude"])),
+                                gr.update(value=_cost_line("Gemini")),
+                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Gemini"])),
+                                gr.update(value=_sanitize_pairs_for_display(s.resubmissions_history)),
+                                ("done" if s.notifications_enabled else ""),
+                            )
+                            return
                 else:
                     models = MULTI_BUTTON_MODELS[lbl]
 
-                    async def status_generator():
-                        # Initial proposer dispatch status
-                        yield s.chat_history.as_display(), gr.update(value=f"**Status:** Sending requests for proposals…", visible=True), *_model_and_cost_updates(), ""
+                    async for event in run_multi(models, s.selected_aggregator, last_user, s):
+                        # Persist state changes between events
+                        save_session(s)
 
-                        async def proposer_task(model):
-                            try:
-                                result = await call_proposer(
-                                    model,
-                                    last_user,
-                                    s.chat_history.entries(),
-                                    s.pdf_path,
-                                    s.cost_tracker,
-                                    retries=5,
-                                    temperature=s.temperature,
-                                )
-                                return model, result
-                            except Exception as e:
-                                print("[ERROR] proposer", model, e)
-                                return model, create_user_friendly_error_message(e, model)
-
-                        tasks = [proposer_task(m) for m in models]
-                        proposals_by_model = {}
-                        num_models = len(models)
-
-                        yield s.chat_history.as_display(), gr.update(value=f"**Status:** Collecting replies (0/{num_models})...", visible=True), *_model_and_cost_updates(), ""
-
-                        for i, future in enumerate(asyncio.as_completed(tasks)):
-                            model, proposal = await future
-                            proposals_by_model[model] = proposal
-                            status_msg = f"**Status:** Collecting replies ({i + 1}/{num_models})..."
-                            yield s.chat_history.as_display(), gr.update(value=status_msg, visible=True), *_model_and_cost_updates(), ""
-
-                        proposals = [proposals_by_model[m] for m in models]
-                        for m, p in zip(models, proposals):
-                            p_log = p.replace('\n', ' ')
-                            if len(p_log) > 100:
-                                p_log = p_log[:97] + "..."
-                            print("[PROPOSAL]", m, p_log)
-                            s.model_histories[m].append((last_user, p))
-
-                        for iteration in range(1, 6):
-                            yield s.chat_history.as_display(), gr.update(value=f"**Status:** Aggregating replies, iteration {iteration}…", visible=True), *_model_and_cost_updates(), ""
-
-                            try:
-                                agg_out = await call_aggregator(
-                                    proposals,
-                                    last_user,
-                                    s.chat_history.entries(),
-                                    s.pdf_path,
-                                    s.cost_tracker,
-                                    iteration,
-                                    s.selected_aggregator,
-                                    temperature=s.temperature,
-                                )
-                            except Exception as e:
-                                print(f"[ERROR] aggregator {s.selected_aggregator} iteration {iteration}: {e}")
-                                error_message = create_user_friendly_error_message(e, s.selected_aggregator)
-                                fallback_reply = f"**Aggregation failed:** {error_message}\n\n**Here are the individual proposals:**\n\n"
-                                for i, proposal in enumerate(proposals, 1):
-                                    fallback_reply += f"**Proposal {i}:**\n{proposal}\n\n"
-                                s.chat_history.add_assistant(fallback_reply.strip())
-                                save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
-                                save_session(s)
-                                yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), ("done" if s.notifications_enabled else "")
-                                return
-
-                            first = first_non_empty_line(agg_out).lower()
-                            if "final" in first:
-                                final_reply = text_after_first_line(agg_out)
-                                s.chat_history.add_assistant(final_reply)
-                                save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
-                                save_session(s)
-                                yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), ("done" if s.notifications_enabled else "")
-                                return
-                            elif "request synthesis from proposers" in first and iteration < 5:
-                                aggregator_notes = text_after_first_line(agg_out)
-                                # Build full packet for logging and for proposer synthesis
-                                packet = format_proposal_packet(proposals)
-                                full_prompt_for_logging = "[" + packet + "\n" + aggregator_notes + "]"
-                                # Log full prompt into Resubmissions tab (user prompt containing proposals + remarks)
-                                s.resubmissions_history.append(("", full_prompt_for_logging))
-
-                                async def synth_task(model):
-                                    try:
-                                        return await call_synthesis(
-                                            model,
-                                            last_user,
-                                            s.chat_history.entries(),
-                                            s.pdf_path,
-                                            aggregator_notes=aggregator_notes,
-                                            cost_tracker=s.cost_tracker,
-                                            retries=5,
-                                            temperature=s.temperature,
-                                            proposals_packet=packet,
-                                        )
-                                    except Exception as e:
-                                        print("[ERROR] synthesis", model, e)
-                                        return create_user_friendly_error_message(e, model)
-
-                                proposals = await asyncio.gather(*[synth_task(m) for m in models])
-                                for m, p in zip(models, proposals):
-                                    print("[SYNTHESIS PROPOSAL]", m, "\n", p, "\n---\n")
-                                    s.model_histories[m].append((last_user, p))
-                                save_session(s)
-                                continue
-                            else:
-                                s.chat_history.add_assistant(agg_out)
-                                save_chat(s.chat_id, s.chat_history.entries(), s.pdf_path)
-                                save_session(s)
-                                yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), ("done" if s.notifications_enabled else "")
-                                return
-
-                    async for (
-                        chat_display,
-                        status_update,
-                        chatgpt_cost_up,
-                        chatgpt_up,
-                        claude_cost_up,
-                        claude_up,
-                        gemini_cost_up,
-                        gemini_up,
-                        resub_up,
-                        notify_update,
-                    ) in status_generator():
-                        yield (
-                            chat_display,
-                            status_update,
-                            chatgpt_cost_up,
-                            chatgpt_up,
-                            claude_cost_up,
-                            claude_up,
-                            gemini_cost_up,
-                            gemini_up,
-                            resub_up,
-                            notify_update,
-                        )
+                        if event.get("type") == "status":
+                            yield (
+                                s.chat_history.as_display(),
+                                gr.update(value=event.get("text", ""), visible=True),
+                                gr.update(value=_cost_line("ChatGPT")),
+                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["ChatGPT"])),
+                                gr.update(value=_cost_line("Claude")),
+                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Claude"])),
+                                gr.update(value=_cost_line("Gemini")),
+                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Gemini"])),
+                                gr.update(value=_sanitize_pairs_for_display(s.resubmissions_history)),
+                                "",
+                            )
+                        elif event.get("type") == "final":
+                            yield (
+                                s.chat_history.as_display(),
+                                gr.update(value="", visible=False),
+                                gr.update(value=_cost_line("ChatGPT")),
+                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["ChatGPT"])),
+                                gr.update(value=_cost_line("Claude")),
+                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Claude"])),
+                                gr.update(value=_cost_line("Gemini")),
+                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Gemini"])),
+                                gr.update(value=_sanitize_pairs_for_display(s.resubmissions_history)),
+                                ("done" if s.notifications_enabled else ""),
+                            )
+                            return
 
             return _handler
 

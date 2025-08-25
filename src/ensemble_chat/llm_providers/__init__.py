@@ -1,19 +1,20 @@
 from .shared import LLMError, retry
-from . import openai_provider as _openai
-from . import anthropic_provider as _anthropic
-from . import gemini_provider as _gemini
+from .registry import register_defaults, get_provider, set_provider_model
 
 
 def set_openai_model(label_or_id: str) -> str:
-    return _openai.set_model(label_or_id)
+    register_defaults()
+    return set_provider_model("ChatGPT", label_or_id)
 
 
 def set_claude_model(label_or_id: str) -> str:
-    return _anthropic.set_model(label_or_id)
+    register_defaults()
+    return set_provider_model("Claude", label_or_id)
 
 
 def set_gemini_model(label_or_id: str) -> str:
-    return _gemini.set_model(label_or_id)
+    register_defaults()
+    return set_provider_model("Gemini", label_or_id)
 
 
 async def call_llm(
@@ -25,15 +26,9 @@ async def call_llm(
     temperature: float = 0.7,
 ) -> tuple[str, int, int, str]:
     async def _inner():
-        ml = model_label.lower()
-        if ml == "chatgpt":
-            return await _openai.call(messages, pdf_path, temperature=temperature)
-        elif ml == "claude":
-            return await _anthropic.call(messages, pdf_path, temperature=temperature)
-        elif ml == "gemini":
-            return await _gemini.call(messages, pdf_path, temperature=temperature)
-        else:
-            raise ValueError(f"Unknown model label: {model_label}")
+        register_defaults()
+        provider = get_provider(model_label)
+        return await provider.call(messages, pdf_path, temperature=temperature)
 
     try:
         return await retry(_inner, retries=retries, context=f"model={model_label}")
