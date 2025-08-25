@@ -15,6 +15,8 @@ from ensemble_chat.ui.ui import build_ui
 
 def main():
     os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
+    # Suppress noisy runtime warnings caused by Gradio closing async generators
+    warnings.filterwarnings("ignore", category=RuntimeWarning, message=r".*aclose.*was never awaited.*")
     demo = build_ui()
     demo.queue()
     demo.launch()

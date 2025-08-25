@@ -26,6 +26,13 @@ class ChatHistory:
             return True
         return False
 
+    def remove_last_user(self):
+        """Remove the most recent user message if it is the last entry (unanswered)."""
+        if len(self._entries) >= 1 and self._entries[-1]["role"] == "user":
+            self._entries.pop()
+            return True
+        return False
+
     def as_display(self):
         # Converts to list of tuples (user, assistant) for Gradio Chatbot
         display = []

@@ -35,6 +35,9 @@ class SessionState:
         self.selected_aggregator = "Claude"
         self.temperature: float = 0.7
         self.notifications_enabled: bool = True
+        # Ephemeral runtime fields (not serialized)
+        self._run_id: int = 0
+        self._current_task = None
 
 
 # --- Session persistence (robust across Gradio resets) ---

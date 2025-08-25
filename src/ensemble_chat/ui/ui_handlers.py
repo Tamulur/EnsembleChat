@@ -44,6 +44,33 @@ def wire_events(demo: gr.Blocks, ui: dict):
     temperature_slider: gr.Slider = ui["temperature_slider"]
     notifications_checkbox: gr.Checkbox = ui["notifications_checkbox"]
 
+    # --- Cooperative cancellation utilities ---
+    def _cancel_inflight(s: SessionState):
+        """Cancel any in-flight async tasks for this session and bump run id."""
+        try:
+            # Bump run id to invalidate any loops checking it
+            if not hasattr(s, "_run_id"):
+                s._run_id = 0
+            s._run_id += 1
+            current = getattr(s, "_current_task", None)
+            if current is None:
+                return
+            # Support single task or list/tuple of tasks
+            tasks = current if isinstance(current, (list, tuple)) else [current]
+            for t in tasks:
+                try:
+                    if t is None:
+                        continue
+                    # Asyncio Task cancellation (ignore errors if already done)
+                    if hasattr(t, "cancel"):
+                        t.cancel()
+                except Exception:
+                    pass
+            s._current_task = None
+        except Exception:
+            # Never let cancellation path throw
+            pass
+
     # --- PDF selection ---
     def _set_pdf(file, s: SessionState):
         if file is not None:
@@ -125,6 +152,11 @@ def wire_events(demo: gr.Blocks, ui: dict):
 
     # --- New Chat (reset session) ---
     def _reset_session(s: SessionState):
+        # Cancel any in-flight work before resetting
+        try:
+            _cancel_inflight(s)
+        except Exception:
+            pass
         from ensemble_chat.core.session_state import SESSION_FILE
         try:
             if SESSION_FILE.exists():
@@ -183,14 +215,25 @@ def wire_events(demo: gr.Blocks, ui: dict):
             state,
             pdf_input,
         ],
+        queue=False,
     )
 
     # --- User message handling ---
     def _add_user_and_clear(user_input: str, s: SessionState):
+        # Always cancel any in-flight work on new click
+        _cancel_inflight(s)
+
         if not user_input:
+            # Regenerate: keep last user message, ensure no dangling assistant
             s.chat_history.remove_last_assistant()
             save_session(s)
             return s.chat_history.as_display(), "", s
+
+        # New query: remove any unanswered trailing user from an aborted run
+        try:
+            s.chat_history.remove_last_user()
+        except Exception:
+            pass
         s.chat_history.add_user(user_input)
         save_session(s)
         return s.chat_history.as_display(), "", s
@@ -201,10 +244,17 @@ def wire_events(demo: gr.Blocks, ui: dict):
             inputs=[user_box, state],
             outputs=[chat, user_box, state],
             show_progress=False,
+            queue=False,
         )
 
         def _make_process(lbl):
             async def _handler(s: SessionState, current_file):
+                # Track this event's asyncio task for cooperative cancellation
+                try:
+                    import asyncio as _asyncio
+                    s._current_task = _asyncio.current_task()
+                except Exception:
+                    pass
                 try:
                     if current_file:
                         s.pdf_path = current_file
@@ -225,6 +275,11 @@ def wire_events(demo: gr.Blocks, ui: dict):
                         gr.update(value=_sanitize_pairs_for_display(s.resubmissions_history)),
                     )
 
+                # Capture run id for this handler instance to detect invalidation
+                if not hasattr(s, "_run_id"):
+                    s._run_id = 0
+                handler_run_id = s._run_id
+
                 last_user = None
                 for entry in reversed(s.chat_history.entries()):
                     if entry["role"] == "user":
@@ -243,6 +298,9 @@ def wire_events(demo: gr.Blocks, ui: dict):
 
                 if lbl in ["ChatGPT", "Claude", "Gemini"]:
                     async for event in run_single(lbl, last_user, s):
+                        # If another click invalidated this run, stop immediately
+                        if getattr(s, "_run_id", handler_run_id) != handler_run_id:
+                            return
                         save_session(s)
                         if event.get("type") == "status":
                             yield (
@@ -275,6 +333,9 @@ def wire_events(demo: gr.Blocks, ui: dict):
                     models = MULTI_BUTTON_MODELS[lbl]
 
                     async for event in run_multi(models, s.selected_aggregator, last_user, s):
+                        # If another click invalidated this run, stop immediately
+                        if getattr(s, "_run_id", handler_run_id) != handler_run_id:
+                            return
                         # Persist state changes between events
                         save_session(s)
 

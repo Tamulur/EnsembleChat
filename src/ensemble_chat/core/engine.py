@@ -19,6 +19,8 @@ async def run_single(
       - {'type': 'final', 'text': str}
     """
 
+    # Capture run id to support cooperative cancellation
+    run_id_at_start = getattr(state, "_run_id", 0)
     yield {"type": "status", "text": f"**Status:** Waiting for {model_label}…"}
 
     try:
@@ -31,8 +33,15 @@ async def run_single(
             retries=5,
             temperature=state.temperature,
         )
+    except asyncio.CancelledError:
+        # Cooperative cancellation: do not mutate state
+        raise
     except Exception as e:
         reply_text = create_user_friendly_error_message(e, model_label)
+
+    # If invalidated by a newer click, stop without mutating state
+    if getattr(state, "_run_id", run_id_at_start) != run_id_at_start:
+        raise asyncio.CancelledError()
 
     # Update state
     state.chat_history.add_assistant(reply_text)
@@ -55,6 +64,9 @@ async def run_multi(
       - {'type': 'final', 'text': str}
     """
 
+    # Capture run id to support cooperative cancellation
+    run_id_at_start = getattr(state, "_run_id", 0)
+
     # Status: dispatching
     yield {"type": "status", "text": "**Status:** Sending requests for proposals…"}
 
@@ -71,6 +83,8 @@ async def run_multi(
                 temperature=state.temperature,
             )
             return model, result
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             return model, create_user_friendly_error_message(e, model)
 
@@ -81,12 +95,30 @@ async def run_multi(
     # Initial collecting status
     yield {"type": "status", "text": f"**Status:** Collecting replies (0/{num_models})..."}
 
-    for i, future in enumerate(asyncio.as_completed(tasks)):
-        model, proposal = await future
-        proposals_by_model[model] = proposal
-        yield {"type": "status", "text": f"**Status:** Collecting replies ({i + 1}/{num_models})..."}
+    pending = set(map(asyncio.create_task, tasks))
+    try:
+        i = 0
+        while pending:
+            # Check invalidation before waiting
+            if getattr(state, "_run_id", run_id_at_start) != run_id_at_start:
+                raise asyncio.CancelledError()
+            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+            for d in done:
+                model, proposal = await d
+                proposals_by_model[model] = proposal
+                i += 1
+                yield {"type": "status", "text": f"**Status:** Collecting replies ({i}/{num_models})..."}
+    except asyncio.CancelledError:
+        for t in pending:
+            t.cancel()
+        # Propagate to allow upstream to stop without mutating state
+        raise
 
     proposals = [proposals_by_model[m] for m in models]
+
+    # If invalidated, stop before mutating any state below
+    if getattr(state, "_run_id", run_id_at_start) != run_id_at_start:
+        raise asyncio.CancelledError()
 
     # Append initial proposals to model histories for tabs
     for m, p in zip(models, proposals):
@@ -94,6 +126,9 @@ async def run_multi(
 
     # Aggregation loop up to 5 iterations
     for iteration in range(1, 6):
+        # If invalidated, stop before doing more work
+        if getattr(state, "_run_id", run_id_at_start) != run_id_at_start:
+            raise asyncio.CancelledError()
         yield {"type": "status", "text": f"**Status:** Aggregating replies, iteration {iteration}…"}
 
         try:
@@ -107,6 +142,8 @@ async def run_multi(
                 aggregator_label,
                 temperature=state.temperature,
             )
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             error_message = create_user_friendly_error_message(e, aggregator_label)
             fallback_reply = f"**Aggregation failed:** {error_message}\n\n**Here are the individual proposals:**\n\n"
@@ -117,6 +154,9 @@ async def run_multi(
             yield {"type": "final", "text": state.chat_history._entries[-1]["text"]}
             return
 
+        # If invalidated, stop before mutating state with aggregator output
+        if getattr(state, "_run_id", run_id_at_start) != run_id_at_start:
+            raise asyncio.CancelledError()
         first = first_non_empty_line(agg_out).lower()
         if "final" in first:
             final_reply = text_after_first_line(agg_out)
