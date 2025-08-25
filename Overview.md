@@ -28,6 +28,14 @@ Seven tabs: Chat, ChatGPT, Claude, Gemini, Attachments, Resubmissions, and Setti
     2. Re-process the **same user input as before** according to the button pressed.  
        *Example:* clicking **All** resends the prior user input to all proposers and aggregates their new replies.
 
+### Cancellation & latest-click behavior
+* While a reply is processing, the action buttons remain enabled.
+* Clicking any action button during processing will **cancel the in-flight run immediately** and start a new run based on your latest intent:
+  * **Empty input box**: reuses the last user message (behaves like “redo” for that turn).
+  * **New text in input box**: removes any unanswered trailing user message from history and uses the newly typed text.
+* The cancelled run does not add any partial results to history or model tabs.
+* Clicking **New Chat** during processing cancels the in-flight run first, then resets the session.
+
 ### Model tabs: last outputs of each LLM
 The next three tabs show the last output of each LLM that is produced when directly queried for an answer (with the ChatGPT, Claude or Gemini button), or when asked for a proposal (with the All button for example). The user query that was used to generate that LLM output precedes the output in the tab's chat window. The Claude tab contains only the output that was produced in these cases, it does not show the output that Claude produced in the aggregator role (if Claude is set to be the aggregator).
 
@@ -46,6 +54,7 @@ All settings are stored in `Configurations/Settings.json`. If that file doesn't 
 
 ### UI status messages
 
+* “Waiting for ChatGPT/Claude/Gemini…” for single-LLM calls.
 * “Sending requests for proposals…” when dispatching proposer calls.
 * “Collecting replies…” while waiting for proposers.
 * “Aggregating replies, iteration *N*…” during each aggregator pass.
