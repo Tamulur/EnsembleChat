@@ -28,8 +28,8 @@ def build_ui():
                 for k, v in loaded.get("cost_per_model", {}).items():
                     if isinstance(v, (int, float)):
                         initial_state.cost_tracker.model_costs[k] = float(v)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] Failed to restore cost totals from session: {e}")
 
     demo, ui = build_base_layout(initial_state, APP_SETTINGS, MODEL_CONFIGS, wire=wire_events)
     return demo

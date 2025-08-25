@@ -22,7 +22,8 @@ def project_root() -> Path:
     # Last resort: go up 3 directories (core -> ensemble_chat -> src -> root)
     try:
         return here.parents[3]
-    except IndexError:
+    except IndexError as e:
+        print(f"[WARN] Failed to resolve project root via parents[3]: {e}. Falling back to here.parent")
         return here.parent
 
 

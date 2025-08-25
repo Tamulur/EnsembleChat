@@ -102,8 +102,8 @@ async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, tempe
     try:
         if isinstance(temperature, (int, float)):
             create_kwargs["temperature"] = float(temperature)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[WARN] Failed to set temperature for OpenAI call: {e}")
 
     try:
         resp = await _openai_client.responses.create(**create_kwargs)
@@ -113,8 +113,8 @@ async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, tempe
             try:
                 if "temperature" in create_kwargs:
                     del create_kwargs["temperature"]
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[WARN] Failed to remove temperature from OpenAI kwargs after error: {e}")
             resp = await _openai_client.responses.create(**create_kwargs)
         else:
             raise

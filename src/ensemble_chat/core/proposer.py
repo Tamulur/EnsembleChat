@@ -21,8 +21,8 @@ async def call_proposer(model_label: str, user_input: str, chat_history: List[Di
     cost_tracker.add_usage(model_label, pt, ct)
     try:
         write_last_raw_response(model_label, raw)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[WARN] Failed to write last raw response for {model_label}: {e}")
     return text
 
 
@@ -57,8 +57,8 @@ async def call_synthesis(
     cost_tracker.add_usage(model_label, pt, ct)
     try:
         write_last_raw_response(model_label, raw)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[WARN] Failed to write last raw synthesis response for {model_label}: {e}")
     return text
 
 

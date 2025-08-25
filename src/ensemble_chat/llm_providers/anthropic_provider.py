@@ -113,7 +113,8 @@ async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, tempe
             raw_text = json.dumps(resp, indent=2, default=str)
         else:
             raw_text = str(resp)
-    except Exception:
+    except Exception as e:
+        print(f"[WARN] Failed to serialize Anthropic raw response: {e}. Falling back to str(resp)")
         try:
             raw_text = str(resp)
         except Exception:

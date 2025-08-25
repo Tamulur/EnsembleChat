@@ -96,7 +96,8 @@ async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, tempe
                 raw_text_local = json.dumps(resp, indent=2, default=str)
             else:
                 raw_text_local = str(resp)
-        except Exception:
+        except Exception as e:
+            print(f"[WARN] Failed to serialize Gemini raw response: {e}. Falling back to str(resp)")
             raw_text_local = str(resp)
 
         return text, prompt_tokens, completion_tokens, raw_text_local

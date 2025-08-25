@@ -18,8 +18,8 @@ def _read(path: str) -> str:
 def _examples() -> str:
     try:
         return _read(os.path.join("Prompts", "ExampleExplanations.txt"))
-    except FileNotFoundError:
-        # If the examples file is missing, return empty string to avoid errors
+    except FileNotFoundError as e:
+        print(f"[WARN] Examples file missing: {e}. Continuing without examples.")
         return ""
 
 
@@ -28,8 +28,8 @@ def _examples() -> str:
 def _system_prompt_common() -> str:
     try:
         return _read(os.path.join("Prompts", "SystemPromptCommon.txt"))
-    except FileNotFoundError:
-        # If the system prompt common file is missing, return empty string to avoid errors
+    except FileNotFoundError as e:
+        print(f"[WARN] SystemPromptCommon.txt missing: {e}. Continuing without common system text.")
         return ""
 
 
@@ -38,7 +38,8 @@ def _synthesize_prompt_common() -> str:
     """Cached read of SynthesizePromptCommon.txt for user prompts."""
     try:
         return _read(os.path.join("Prompts", "SynthesizePromptCommon.txt"))
-    except FileNotFoundError:
+    except FileNotFoundError as e:
+        print(f"[WARN] SynthesizePromptCommon.txt missing: {e}. Continuing without common synthesis text.")
         return ""
 
 

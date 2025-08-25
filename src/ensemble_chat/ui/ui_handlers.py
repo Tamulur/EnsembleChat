@@ -65,7 +65,8 @@ def wire_events(demo: gr.Blocks, ui: dict):
         s.selected_openai_model = selection
         try:
             set_openai_model(str(selection).lower())
-        except Exception:
+        except Exception as e:
+            print(f"[WARN] Failed to set OpenAI model to lowercase id: {e}. Falling back to raw selection.")
             set_openai_model(str(selection))
         APP_SETTINGS["openai_model"] = selection
         save_settings(APP_SETTINGS)
@@ -106,7 +107,8 @@ def wire_events(demo: gr.Blocks, ui: dict):
     def _set_temperature(val: float, s: SessionState):
         try:
             s.temperature = float(val)
-        except Exception:
+        except Exception as e:
+            print(f"[WARN] Invalid temperature '{val}': {e}. Using default 0.7")
             s.temperature = 0.7
         APP_SETTINGS["temperature"] = s.temperature
         save_settings(APP_SETTINGS)
@@ -145,8 +147,8 @@ def wire_events(demo: gr.Blocks, ui: dict):
             set_openai_model(s.selected_openai_model)
             set_claude_model(s.selected_claude_model)
             set_gemini_model(s.selected_gemini_model)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] Failed to rehydrate selections or apply provider models: {e}")
         save_session(s)
 
         def _cost_line(label: str) -> str:
@@ -209,8 +211,8 @@ def wire_events(demo: gr.Blocks, ui: dict):
                 try:
                     if current_file:
                         s.pdf_path = current_file
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[WARN] Failed to set pdf_path from current_file: {e}")
 
                 def _cost_line(label: str) -> str:
                     return f"**Cost so far:** ${s.cost_tracker.get_model_cost(label):.4f}"
@@ -418,7 +420,8 @@ def wire_events(demo: gr.Blocks, ui: dict):
     def _apply_initial_models(s: SessionState):
         try:
             set_openai_model(str(s.selected_openai_model).lower())
-        except Exception:
+        except Exception as e:
+            print(f"[WARN] Failed to set initial OpenAI model to lowercase id: {e}. Falling back to raw selection.")
             set_openai_model(str(s.selected_openai_model))
         set_claude_model(s.selected_claude_model)
         set_gemini_model(s.selected_gemini_model)
