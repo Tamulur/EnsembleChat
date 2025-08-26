@@ -22,6 +22,9 @@ ICON_MAP = {
     "All": str(ICON_DIR / "All.png"),
 }
 
+# Placeholder for stop icon; used later for visual swap
+STOP_ICON = str(ICON_DIR / "Stop_Sign.png")
+
 
 # Shared LaTeX delimiters configuration for all Chatbot components
 LATEX_DELIMITERS = [

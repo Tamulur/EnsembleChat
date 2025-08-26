@@ -35,6 +35,7 @@ async def call_aggregator(
     aggregator_label: str,
     temperature: float = 0.7,
 ):
+    print(f"[CORE][aggregator] call_aggregator: provider={aggregator_label} iteration={iteration}")
     agg_messages = []
     agg_messages.append({"role": "system", "content": prompts.aggregator_system()})
 
@@ -57,6 +58,7 @@ async def call_aggregator(
     # Use selected provider as aggregator
     # Use more retries for overload-prone scenarios, but keep it simple
     try:
+        print(f"[CORE][aggregator] attempt 1/1 -> {aggregator_label}")
         response_text, pt, ct, _raw = await call_llm(
             aggregator_label,
             agg_messages,
@@ -65,6 +67,7 @@ async def call_aggregator(
             temperature=temperature,
         )
         cost_tracker.add_usage(aggregator_label, pt, ct)
+        print(f"[CORE][aggregator] success on attempt 1")
         return response_text
     except LLMError as e:
         # Check if this is a 529 overload error and give it one more chance with more retries
@@ -72,17 +75,24 @@ async def call_aggregator(
         if ("529" in error_str or "overloaded" in error_str) and iteration == 1:
             print(f"[AGGREGATOR] Detected overload error on first attempt, retrying with more attempts...")
             # Only retry with more attempts on the first iteration to avoid endless loops
-            response_text, pt, ct, _raw = await call_llm(
-                aggregator_label,
-                agg_messages,
-                pdf_path=pdf_path,
-                retries=3,  # More retries only for overload errors on first iteration
-                temperature=temperature,
-            )
-            cost_tracker.add_usage(aggregator_label, pt, ct)
-            return response_text
+            try:
+                print(f"[CORE][aggregator] overload retry -> provider internal retries=3")
+                response_text, pt, ct, _raw = await call_llm(
+                    aggregator_label,
+                    agg_messages,
+                    pdf_path=pdf_path,
+                    retries=3,  # More retries only for overload errors on first iteration
+                    temperature=temperature,
+                )
+                cost_tracker.add_usage(aggregator_label, pt, ct)
+                print(f"[CORE][aggregator] success after overload retry")
+                return response_text
+            except LLMError as e2:
+                print(f"[CORE][aggregator] overload retry failed: {repr(e2)}")
+                raise
         else:
             # For non-overload errors or later iterations, just fail
+            print(f"[CORE][aggregator] attempt failed (non-overload or later iteration): {repr(e)}")
             raise
 
 

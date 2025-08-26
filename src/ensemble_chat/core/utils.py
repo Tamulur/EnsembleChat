@@ -2,6 +2,7 @@ import os
 import time
 from datetime import datetime
 from typing import List, Dict
+import traceback
 
 
 PRICES_PER_1K_TOKENS = {
@@ -29,14 +30,20 @@ class CostTracker:
     def _estimate_tokens(self, text: str) -> int:
         return max(1, len(text) // CHARS_PER_TOKEN)
 
-    def add_usage(self, model: str, prompt_tokens: int, completion_tokens: int):
+    def add_usage(self, model: str, prompt_tokens: int | None, completion_tokens: int | None):
         model_key = model.lower()
         pricing = PRICES_PER_1K_TOKENS.get(model_key)
         if pricing is None or not isinstance(pricing, dict):
             pricing = {"input": 0.005, "output": 0.005}  # fallback dummy
 
-        input_cost = (prompt_tokens / 1000) * pricing["input"]
-        output_cost = (completion_tokens / 1000) * pricing["output"]
+        # Be defensive: some providers may occasionally not return usage
+        safe_pt = int(prompt_tokens) if isinstance(prompt_tokens, (int, float)) else 0
+        safe_ct = int(completion_tokens) if isinstance(completion_tokens, (int, float)) else 0
+        if not isinstance(prompt_tokens, (int, float)) or not isinstance(completion_tokens, (int, float)):
+            print(f"[COST] Missing token usage for {model} (pt={prompt_tokens}, ct={completion_tokens}); defaulting to 0.")
+
+        input_cost = (safe_pt / 1000) * pricing["input"]
+        output_cost = (safe_ct / 1000) * pricing["output"]
         cost = input_cost + output_cost
 
         self.total_cost += cost
@@ -45,8 +52,8 @@ class CostTracker:
         self.debug_info.append(
             {
                 "model": model,
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
+                "prompt_tokens": safe_pt,
+                "completion_tokens": safe_ct,
                 "input_price_per_1k": pricing["input"],
                 "output_price_per_1k": pricing["output"],
                 "input_cost": input_cost,
@@ -57,7 +64,7 @@ class CostTracker:
         )
         print(
             "[COST] Model %s | prompt %d | completion %d | cost %.4f$ | total %.4f$"
-            % (model, prompt_tokens, completion_tokens, cost, self.total_cost)
+            % (model, safe_pt, safe_ct, cost, self.total_cost)
         )
 
     def will_exceed_budget(self, estimated_cost: float) -> bool:
@@ -112,6 +119,14 @@ def save_chat(chat_id: str, history: List[Dict], pdf_path: str | None = None):
 
 def create_user_friendly_error_message(error: Exception, model_label: str) -> str:
     """Create a user-friendly error message based on the error type and model."""
+    # Log full details to console for diagnostics
+    try:
+        print(f"[ERROR] Provider '{model_label}' raised: {repr(error)}")
+        tb = traceback.format_exc()
+        if tb:
+            print(tb)
+    except Exception:
+        pass
     error_str = str(error).lower()
     
     # Check for specific error patterns

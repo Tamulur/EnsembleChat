@@ -30,6 +30,14 @@ CSS_GLOBAL = (
     "/* New Chat button: position in top-right over tab row without taking space */\n"
     "#btn_new_chat { position: absolute; top: 6px; right: 12px; z-index: 1000; width: auto; display: inline-block; }\n"
     "#btn_new_chat button { width: auto !important; min-width: 110px; height: 32px; line-height: 24px; padding: 4px 12px; }\n"
+    "/* Active button state (no visual change yet, placeholder attribute) */\n"
+    "#btn_chatgpt[data-active='true'] button,\n"
+    "#btn_claude[data-active='true'] button,\n"
+    "#btn_gemini[data-active='true'] button,\n"
+    "#btn_chatgpt_gemini[data-active='true'] button,\n"
+    "#btn_all[data-active='true'] button {\n"
+    "  outline: 2px dashed rgba(255,140,0,0.0); /* placeholder; no visible change */\n"
+    "}\n"
 )
 
 

@@ -1,10 +1,6 @@
-import asyncio
-import os
 import gradio as gr
 
-from ensemble_chat.llm_providers import set_openai_model, set_claude_model, set_gemini_model
 from ensemble_chat.ui.frontend_js import (
-    JS_ALIGN_ON_CHANGE,
     JS_SCROLL_FIX_AFTER_EVENT,
     JS_PRESERVE_TAB_SCROLL,
     JS_NOTIFY_IF_FLAG,
@@ -12,11 +8,24 @@ from ensemble_chat.ui.frontend_js import (
     JS_SELECT_TAB_ATTACHMENTS_ON_LOAD,
     JS_SWITCH_TO_CHAT_TAB_IF_SIGNAL,
 )
-from ensemble_chat.core.engine import run_multi, run_single
-from ensemble_chat.core.model_configs import MODEL_CONFIGS
-from ensemble_chat.core.settings_manager import APP_SETTINGS, save_settings
-from ensemble_chat.core.session_state import SessionState, save_session, load_session_from_disk, _apply_loaded_session, _sanitize_pairs_for_display
-from ensemble_chat.ui.ui_constants import MULTI_BUTTON_MODELS, LATEX_DELIMITERS
+from ensemble_chat.core.settings_actions import (
+    set_openai as core_set_openai,
+    set_claude as core_set_claude,
+    set_gemini as core_set_gemini,
+    set_aggregator as core_set_aggregator,
+    set_temperature as core_set_temperature,
+    set_notifications as core_set_notifications,
+)
+from ensemble_chat.core.session_state import SessionState
+from ensemble_chat.core.interactions import prepare_user_and_state, resolve_last_user_text, budget_guard_message
+from ensemble_chat.core.runtime import cancel_inflight
+from ensemble_chat.core.orchestrator import run_from_label
+from ensemble_chat.core.selectors import cost_line as sel_cost_line, model_display as sel_model_display, resubmissions_display as sel_resub_display, notifications_flag as sel_notify_flag
+from ensemble_chat.core.session_actions import set_pdf as core_set_pdf, apply_provider_models as core_apply_models, reset_session_state as core_reset_session
+from ensemble_chat.ui.ui_render import render_event, render_status_hidden, render_chat_with_message
+from ensemble_chat.core.events import get_event_type
+from ensemble_chat.ui.frontend_js import JS_TOGGLE_ACTIVE_BUTTON
+from ensemble_chat.core.selectors import active_button_elem_id
  
 
 
@@ -27,6 +36,7 @@ def wire_events(demo: gr.Blocks, ui: dict):
     status_display: gr.Markdown = ui["status_display"]
     user_box: gr.Textbox = ui["user_box"]
     notify_flag: gr.Textbox = ui["notify_flag"]
+    active_button_signal: gr.Textbox = ui["active_button_signal"]
     btns: list[gr.Button] = ui["buttons"]
     chatgpt_cost: gr.Markdown = ui["chatgpt_cost"]
     chatgpt_view: gr.Chatbot = ui["chatgpt_view"]
@@ -44,114 +54,61 @@ def wire_events(demo: gr.Blocks, ui: dict):
     temperature_slider: gr.Slider = ui["temperature_slider"]
     notifications_checkbox: gr.Checkbox = ui["notifications_checkbox"]
 
-    # --- Cooperative cancellation utilities ---
-    def _cancel_inflight(s: SessionState):
-        """Cancel any in-flight async tasks for this session and bump run id."""
-        try:
-            # Bump run id to invalidate any loops checking it
-            if not hasattr(s, "_run_id"):
-                s._run_id = 0
-            s._run_id += 1
-            current = getattr(s, "_current_task", None)
-            if current is None:
-                return
-            # Support single task or list/tuple of tasks
-            tasks = current if isinstance(current, (list, tuple)) else [current]
-            for t in tasks:
-                try:
-                    if t is None:
-                        continue
-                    # Asyncio Task cancellation (ignore errors if already done)
-                    if hasattr(t, "cancel"):
-                        t.cancel()
-                except Exception:
-                    pass
-            s._current_task = None
-        except Exception:
-            # Never let cancellation path throw
-            pass
+    # --- Cooperative cancellation utilities (centralized in core.runtime) ---
+    _cancel_inflight = cancel_inflight
 
     # --- PDF selection ---
     def _set_pdf(file, s: SessionState):
-        if file is not None:
-            s.pdf_path = file
-            print(f"[DEBUG] PDF selected: {file}, sending switch_tab signal")
-            save_session(s)
-            return s, "switch_tab"
-        print(f"[DEBUG] No PDF selected, file is: {file}")
-        return s, ""
+        print(f"[UI] pdf_input.change: file={file}")
+        s, signal = core_set_pdf(file, s)
+        if not file:
+            print(f"[UI] No PDF selected")
+        return s, signal
 
     pdf_input.change(_set_pdf, inputs=[pdf_input, state], outputs=[state, tab_switch_signal])
     tab_switch_signal.change(None, inputs=[tab_switch_signal], outputs=None, js=JS_SWITCH_TO_CHAT_TAB_IF_SIGNAL)
+    active_button_signal.change(None, inputs=[active_button_signal], outputs=None, js=JS_TOGGLE_ACTIVE_BUTTON)
 
     # --- Settings handlers ---
     def _set_openai_model(selection: str, s: SessionState):
-        s.selected_openai_model = selection
-        try:
-            set_openai_model(str(selection).lower())
-        except Exception as e:
-            print(f"[WARN] Failed to set OpenAI model to lowercase id: {e}. Falling back to raw selection.")
-            set_openai_model(str(selection))
-        APP_SETTINGS["openai_model"] = selection
-        save_settings(APP_SETTINGS)
-        save_session(s)
-        return s
+        print(f"[UI] set_openai_model -> {selection}")
+        return core_set_openai(selection, s)
 
     openai_model_dropdown.change(_set_openai_model, inputs=[openai_model_dropdown, state], outputs=state)
 
     def _set_claude_model(selection: str, s: SessionState):
-        s.selected_claude_model = selection
-        set_claude_model(selection)
-        APP_SETTINGS["claude_model"] = selection
-        save_settings(APP_SETTINGS)
-        save_session(s)
-        return s
+        print(f"[UI] set_claude_model -> {selection}")
+        return core_set_claude(selection, s)
 
     claude_model_dropdown.change(_set_claude_model, inputs=[claude_model_dropdown, state], outputs=state)
 
     def _set_gemini_model(selection: str, s: SessionState):
-        s.selected_gemini_model = selection
-        set_gemini_model(selection)
-        APP_SETTINGS["gemini_model"] = selection
-        save_settings(APP_SETTINGS)
-        save_session(s)
-        return s
+        print(f"[UI] set_gemini_model -> {selection}")
+        return core_set_gemini(selection, s)
 
     gemini_model_dropdown.change(_set_gemini_model, inputs=[gemini_model_dropdown, state], outputs=state)
 
     def _set_aggregator(selection: str, s: SessionState):
-        s.selected_aggregator = selection
-        APP_SETTINGS["aggregator"] = selection
-        save_settings(APP_SETTINGS)
-        save_session(s)
-        return s
+        print(f"[UI] set_aggregator -> {selection}")
+        return core_set_aggregator(selection, s)
 
     aggregator_dropdown.change(_set_aggregator, inputs=[aggregator_dropdown, state], outputs=state)
 
     def _set_temperature(val: float, s: SessionState):
-        try:
-            s.temperature = float(val)
-        except Exception as e:
-            print(f"[WARN] Invalid temperature '{val}': {e}. Using default 0.7")
-            s.temperature = 0.7
-        APP_SETTINGS["temperature"] = s.temperature
-        save_settings(APP_SETTINGS)
-        save_session(s)
-        return s
+        print(f"[UI] set_temperature -> {val}")
+        return core_set_temperature(val, s)
 
     temperature_slider.change(_set_temperature, inputs=[temperature_slider, state], outputs=state)
 
     def _set_notifications(enabled: bool, s: SessionState):
-        s.notifications_enabled = bool(enabled)
-        APP_SETTINGS["notifications"] = s.notifications_enabled
-        save_settings(APP_SETTINGS)
-        save_session(s)
-        return s
+        print(f"[UI] set_notifications -> {enabled}")
+        return core_set_notifications(enabled, s)
 
     notifications_checkbox.change(_set_notifications, inputs=[notifications_checkbox, state], outputs=state)
 
     # --- New Chat (reset session) ---
     def _reset_session(s: SessionState):
+        print(f"[UI] New Chat clicked: resetting session")
         # Cancel any in-flight work before resetting
         try:
             _cancel_inflight(s)
@@ -163,36 +120,18 @@ def wire_events(demo: gr.Blocks, ui: dict):
                 SESSION_FILE.unlink(missing_ok=True)
         except Exception as e:
             print(f"[WARN] Failed to delete session file: {e}")
-        s = SessionState()
-        # Rehydrate selections from persisted app settings
-        try:
-            s.selected_openai_model = APP_SETTINGS.get("openai_model", MODEL_CONFIGS["OpenAI"][0])
-            s.selected_claude_model = APP_SETTINGS.get("claude_model", MODEL_CONFIGS["Claude"][0])
-            s.selected_gemini_model = APP_SETTINGS.get("gemini_model", MODEL_CONFIGS["Gemini"][0])
-            s.selected_aggregator = APP_SETTINGS.get("aggregator", "Claude")
-            s.temperature = float(APP_SETTINGS.get("temperature", 0.7))
-            s.notifications_enabled = bool(APP_SETTINGS.get("notifications", True))
-            # Apply provider selections to backend
-            set_openai_model(s.selected_openai_model)
-            set_claude_model(s.selected_claude_model)
-            set_gemini_model(s.selected_gemini_model)
-        except Exception as e:
-            print(f"[WARN] Failed to rehydrate selections or apply provider models: {e}")
-        save_session(s)
-
-        def _cost_line(label: str) -> str:
-            return f"**Cost so far:** ${s.cost_tracker.get_model_cost(label):.4f}"
+        s = core_reset_session(s)
 
         return (
             s.chat_history.as_display(),
             gr.update(value="", visible=False),
-            gr.update(value=_cost_line("ChatGPT")),
-            gr.update(value=[]),
-            gr.update(value=_cost_line("Claude")),
-            gr.update(value=[]),
-            gr.update(value=_cost_line("Gemini")),
-            gr.update(value=[]),
-            gr.update(value=[]),
+            gr.update(value=sel_cost_line(s, "ChatGPT")),
+            gr.update(value=sel_model_display(s, "ChatGPT")),
+            gr.update(value=sel_cost_line(s, "Claude")),
+            gr.update(value=sel_model_display(s, "Claude")),
+            gr.update(value=sel_cost_line(s, "Gemini")),
+            gr.update(value=sel_model_display(s, "Gemini")),
+            gr.update(value=sel_resub_display(s)),
             "",
             s,
             gr.update(value=None),
@@ -220,23 +159,11 @@ def wire_events(demo: gr.Blocks, ui: dict):
 
     # --- User message handling ---
     def _add_user_and_clear(user_input: str, s: SessionState):
+        print(f"[UI] action button clicked: input_len={len(user_input) if user_input else 0}")
         # Always cancel any in-flight work on new click
         _cancel_inflight(s)
-
-        if not user_input:
-            # Regenerate: keep last user message, ensure no dangling assistant
-            s.chat_history.remove_last_assistant()
-            save_session(s)
-            return s.chat_history.as_display(), "", s
-
-        # New query: remove any unanswered trailing user from an aborted run
-        try:
-            s.chat_history.remove_last_user()
-        except Exception:
-            pass
-        s.chat_history.add_user(user_input)
-        save_session(s)
-        return s.chat_history.as_display(), "", s
+        # Delegate history preparation to core interactions (no functional change)
+        return prepare_user_and_state(user_input, s)
 
     for btn in btns:
         click_event = btn.click(
@@ -249,123 +176,65 @@ def wire_events(demo: gr.Blocks, ui: dict):
 
         def _make_process(lbl):
             async def _handler(s: SessionState, current_file):
-                # Track this event's asyncio task for cooperative cancellation
-                try:
-                    import asyncio as _asyncio
-                    s._current_task = _asyncio.current_task()
-                except Exception:
-                    pass
+                print(f"[UI] process start label='{lbl}' current_file={bool(current_file)}")
                 try:
                     if current_file:
                         s.pdf_path = current_file
                 except Exception as e:
                     print(f"[WARN] Failed to set pdf_path from current_file: {e}")
 
-                def _cost_line(label: str) -> str:
-                    return f"**Cost so far:** ${s.cost_tracker.get_model_cost(label):.4f}"
-
-                def _model_and_cost_updates():
-                    return (
-                        gr.update(value=_cost_line("ChatGPT")),
-                        gr.update(value=_sanitize_pairs_for_display(s.model_histories["ChatGPT"])),
-                        gr.update(value=_cost_line("Claude")),
-                        gr.update(value=_sanitize_pairs_for_display(s.model_histories["Claude"])),
-                        gr.update(value=_cost_line("Gemini")),
-                        gr.update(value=_sanitize_pairs_for_display(s.model_histories["Gemini"])),
-                        gr.update(value=_sanitize_pairs_for_display(s.resubmissions_history)),
-                    )
+                # Per-render selectors are used by the render adapter
 
                 # Capture run id for this handler instance to detect invalidation
                 if not hasattr(s, "_run_id"):
                     s._run_id = 0
                 handler_run_id = s._run_id
 
-                last_user = None
-                for entry in reversed(s.chat_history.entries()):
-                    if entry["role"] == "user":
-                        last_user = entry["text"]
-                        break
+                last_user = resolve_last_user_text(s)
                 if last_user is None:
-                    yield s.chat_history.as_display(), gr.update(value="", visible=False), *_model_and_cost_updates(), ""
+                    print(f"[UI] no last_user found; aborting run")
+                    yield render_status_hidden(s)
                     return
 
-                if s.cost_tracker.will_exceed_budget(0.05):
-                    warn = "Budget exceeded ($5). Start a new session or change selection."
-                    disp = s.chat_history.as_display()
-                    disp.append((None, warn))
-                    yield disp, gr.update(value="", visible=False), *_model_and_cost_updates(), ""
+                warn = budget_guard_message(s, 0.05)
+                if warn:
+                    print(f"[UI] budget guard: {warn}")
+                    yield render_chat_with_message(s, warn)
                     return
 
-                if lbl in ["ChatGPT", "Claude", "Gemini"]:
-                    async for event in run_single(lbl, last_user, s):
+                async for event in run_from_label(lbl, last_user, s):
                         # If another click invalidated this run, stop immediately
                         if getattr(s, "_run_id", handler_run_id) != handler_run_id:
+                            print(f"[UI] run invalidated in UI loop; stopping rendering")
                             return
-                        save_session(s)
-                        if event.get("type") == "status":
-                            yield (
-                                s.chat_history.as_display(),
-                                gr.update(value=event.get("text", ""), visible=True),
-                                gr.update(value=_cost_line("ChatGPT")),
-                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["ChatGPT"])),
-                                gr.update(value=_cost_line("Claude")),
-                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Claude"])),
-                                gr.update(value=_cost_line("Gemini")),
-                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Gemini"])),
-                                gr.update(value=_sanitize_pairs_for_display(s.resubmissions_history)),
-                                "",
-                            )
-                        elif event.get("type") == "final":
-                            yield (
-                                s.chat_history.as_display(),
-                                gr.update(value="", visible=False),
-                                gr.update(value=_cost_line("ChatGPT")),
-                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["ChatGPT"])),
-                                gr.update(value=_cost_line("Claude")),
-                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Claude"])),
-                                gr.update(value=_cost_line("Gemini")),
-                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Gemini"])),
-                                gr.update(value=_sanitize_pairs_for_display(s.resubmissions_history)),
-                                ("done" if s.notifications_enabled else ""),
-                            )
-                            return
-                else:
-                    models = MULTI_BUTTON_MODELS[lbl]
-
-                    async for event in run_multi(models, s.selected_aggregator, last_user, s):
-                        # If another click invalidated this run, stop immediately
-                        if getattr(s, "_run_id", handler_run_id) != handler_run_id:
-                            return
-                        # Persist state changes between events
-                        save_session(s)
-
-                        if event.get("type") == "status":
-                            yield (
-                                s.chat_history.as_display(),
-                                gr.update(value=event.get("text", ""), visible=True),
-                                gr.update(value=_cost_line("ChatGPT")),
-                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["ChatGPT"])),
-                                gr.update(value=_cost_line("Claude")),
-                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Claude"])),
-                                gr.update(value=_cost_line("Gemini")),
-                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Gemini"])),
-                                gr.update(value=_sanitize_pairs_for_display(s.resubmissions_history)),
-                                "",
-                            )
-                        elif event.get("type") == "final":
-                            yield (
-                                s.chat_history.as_display(),
-                                gr.update(value="", visible=False),
-                                gr.update(value=_cost_line("ChatGPT")),
-                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["ChatGPT"])),
-                                gr.update(value=_cost_line("Claude")),
-                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Claude"])),
-                                gr.update(value=_cost_line("Gemini")),
-                                gr.update(value=_sanitize_pairs_for_display(s.model_histories["Gemini"])),
-                                gr.update(value=_sanitize_pairs_for_display(s.resubmissions_history)),
-                                ("done" if s.notifications_enabled else ""),
-                            )
-                            return
+                        ev_type = get_event_type(event)
+                        # On run start lifecycle, emit active button signal (logging-only JS for now)
+                        if ev_type == "run_started":
+                            try:
+                                elem_id = active_button_elem_id(s)
+                                print(f"[UI] active_signal(run_started) -> {elem_id}")
+                                base = render_status_hidden(s)
+                                yield (
+                                    base[0], base[1], base[2], base[3], base[4], base[5], base[6], base[7], base[8], base[9],
+                                    gr.update(value=elem_id),
+                                )
+                            except Exception as e:
+                                print(f"[UI] active_signal(run_started) error: {e}")
+                        if ev_type in ("status", "final", "error"):
+                            updates = render_event(s, event)
+                            # Append the active button signal as an 11th output to keep consistency
+                            try:
+                                elem_id = active_button_elem_id(s) if ev_type != "final" else ""
+                                if elem_id:
+                                    print(f"[UI] active_signal({ev_type}) -> {elem_id}")
+                                else:
+                                    print(f"[UI] active_signal({ev_type}) -> (cleared)")
+                                yield (*updates, gr.update(value=elem_id))
+                            except Exception as e:
+                                print(f"[UI] active_signal append error: {e}")
+                                yield updates
+                            if ev_type == "final":
+                                return
 
             return _handler
 
@@ -383,6 +252,7 @@ def wire_events(demo: gr.Blocks, ui: dict):
                 gemini_view,
                 resub_view,
                 notify_flag,
+                active_button_signal,
             ],
         )
 
@@ -396,14 +266,7 @@ def wire_events(demo: gr.Blocks, ui: dict):
 
     # Apply initial provider models on app load
     def _apply_initial_models(s: SessionState):
-        try:
-            set_openai_model(str(s.selected_openai_model).lower())
-        except Exception as e:
-            print(f"[WARN] Failed to set initial OpenAI model to lowercase id: {e}. Falling back to raw selection.")
-            set_openai_model(str(s.selected_openai_model))
-        set_claude_model(s.selected_claude_model)
-        set_gemini_model(s.selected_gemini_model)
-        return s
+        return core_apply_models(s)
 
     demo.load(_apply_initial_models, inputs=state, outputs=state)
 

@@ -297,3 +297,27 @@ JS_SWITCH_TO_CHAT_TAB_IF_SIGNAL = """
 """
 
 
+
+JS_TOGGLE_ACTIVE_BUTTON = """
+(signal) => {
+  try {
+    const app = document.querySelector('gradio-app');
+    const doc = (app && app.shadowRoot) ? app.shadowRoot : document;
+    const ids = ['btn_chatgpt','btn_claude','btn_gemini','btn_chatgpt_gemini','btn_all'];
+    const clearAll = () => {
+      ids.forEach(id => {
+        const host = doc.getElementById(id);
+        if (host) host.removeAttribute('data-active');
+      });
+    };
+    console.log("[UI][button] active signal:", signal);
+    if (!signal || typeof signal !== 'string') { clearAll(); return; }
+    clearAll();
+    const host = doc.getElementById(signal);
+    if (host) host.setAttribute('data-active','true');
+  } catch (e) {
+    console.warn('[UI][button] active toggle error', e);
+  }
+}
+"""
+

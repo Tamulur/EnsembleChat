@@ -3,7 +3,8 @@ import gradio as gr
 
 from ensemble_chat.ui.frontend_css import CSS_GLOBAL
 from ensemble_chat.ui.frontend_js import JS_ALIGN_ON_CHANGE
-from ensemble_chat.core.session_state import SessionState, _sanitize_pairs_for_display
+from ensemble_chat.core.session_state import SessionState
+from ensemble_chat.core.selectors import cost_line as sel_cost_line, model_display as sel_model_display, resubmissions_display as sel_resub_display
 from ensemble_chat.ui.ui_constants import ICON_MAP, BUTTONS, LATEX_DELIMITERS
 
 
@@ -26,6 +27,7 @@ def build_base_layout(initial_state: SessionState, app_settings, model_configs, 
                 status_display = gr.Markdown("", visible=False)
                 user_box = gr.Textbox(label="You", value="")
                 notify_flag = gr.Textbox(value="", visible=False)
+                active_button_signal = gr.Textbox(value="", visible=False)
 
                 with gr.Row():
                     BUTTON_ID_MAP = {
@@ -43,13 +45,13 @@ def build_base_layout(initial_state: SessionState, app_settings, model_configs, 
             MODEL_TAB_HEIGHT = 700
             with gr.Tab("ChatGPT"):
                 chatgpt_cost = gr.Markdown(
-                    f"**Cost so far:** ${initial_state.cost_tracker.get_model_cost('ChatGPT'):.4f}",
+                    sel_cost_line(initial_state, "ChatGPT"),
                     elem_id="chatgpt_cost",
                 )
                 chatgpt_view = gr.Chatbot(
                     label="ChatGPT Output",
                     height=MODEL_TAB_HEIGHT,
-                    value=_sanitize_pairs_for_display(initial_state.model_histories["ChatGPT"]),
+                    value=sel_model_display(initial_state, "ChatGPT"),
                     autoscroll=False,
                     elem_id="chatgpt_view",
                     latex_delimiters=LATEX_DELIMITERS,
@@ -57,13 +59,13 @@ def build_base_layout(initial_state: SessionState, app_settings, model_configs, 
 
             with gr.Tab("Claude"):
                 claude_cost = gr.Markdown(
-                    f"**Cost so far:** ${initial_state.cost_tracker.get_model_cost('Claude'):.4f}",
+                    sel_cost_line(initial_state, "Claude"),
                     elem_id="claude_cost",
                 )
                 claude_view = gr.Chatbot(
                     label="Claude Output",
                     height=MODEL_TAB_HEIGHT,
-                    value=_sanitize_pairs_for_display(initial_state.model_histories["Claude"]),
+                    value=sel_model_display(initial_state, "Claude"),
                     autoscroll=False,
                     elem_id="claude_view",
                     latex_delimiters=LATEX_DELIMITERS,
@@ -71,13 +73,13 @@ def build_base_layout(initial_state: SessionState, app_settings, model_configs, 
 
             with gr.Tab("Gemini"):
                 gemini_cost = gr.Markdown(
-                    f"**Cost so far:** ${initial_state.cost_tracker.get_model_cost('Gemini'):.4f}",
+                    sel_cost_line(initial_state, "Gemini"),
                     elem_id="gemini_cost",
                 )
                 gemini_view = gr.Chatbot(
                     label="Gemini Output",
                     height=MODEL_TAB_HEIGHT,
-                    value=_sanitize_pairs_for_display(initial_state.model_histories["Gemini"]),
+                    value=sel_model_display(initial_state, "Gemini"),
                     autoscroll=False,
                     elem_id="gemini_view",
                     latex_delimiters=LATEX_DELIMITERS,
@@ -93,7 +95,7 @@ def build_base_layout(initial_state: SessionState, app_settings, model_configs, 
                 resub_view = gr.Chatbot(
                     label="Resubmissions",
                     height=800,
-                    value=_sanitize_pairs_for_display(initial_state.resubmissions_history),
+                    value=sel_resub_display(initial_state),
                     autoscroll=False,
                     elem_id="resub_view",
                     latex_delimiters=LATEX_DELIMITERS,
@@ -151,6 +153,7 @@ def build_base_layout(initial_state: SessionState, app_settings, model_configs, 
             "status_display": status_display,
             "user_box": user_box,
             "notify_flag": notify_flag,
+            "active_button_signal": active_button_signal,
             "buttons": btns,
             "chatgpt_cost": chatgpt_cost,
             "chatgpt_view": chatgpt_view,
