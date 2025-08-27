@@ -60,10 +60,35 @@ def budget_guard_message(s: SessionState, estimate: float = 0.05) -> Optional[st
     return None
 
 
+def pop_last_user_to_input(s: SessionState) -> Tuple[List, str, SessionState]:
+    """Remove the trailing user message (if any) and return it for the input box.
+
+    Returns a tuple compatible with the UI handler outputs:
+      (chat_display, user_box_value, session_state)
+    """
+    try:
+        entries = s.chat_history.entries()
+        if entries and entries[-1].get("role") == "user":
+            last_text = entries[-1].get("text", "")
+            removed = s.chat_history.remove_last_user()
+            if removed:
+                try:
+                    save_session(s)
+                except Exception as e:
+                    print(f"[CORE][interactions] save_session error (pop_last_user): {e}")
+                return s.chat_history.as_display(), last_text, s
+    except Exception as e:
+        print(f"[CORE][interactions] pop_last_user_to_input error: {e}")
+        traceback.print_exc()
+    # Nothing to pop; keep input empty
+    return s.chat_history.as_display(), "", s
+
+
 __all__ = [
     "prepare_user_and_state",
     "resolve_last_user_text",
     "budget_guard_message",
+    "pop_last_user_to_input",
 ]
 
 

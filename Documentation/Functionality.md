@@ -31,7 +31,8 @@ Seven tabs: Chat, ChatGPT, Claude, Gemini, Attachments, Resubmissions, and Setti
 ### Cancellation & latest-click behavior
 * While a reply is processing, the action buttons remain enabled.
 * The active button is orange while the respective process is running.
-* Clicking any action button during processing will **cancel the in-flight run immediately** and start a new run based on your latest intent:
+* Clicking the **active (orange) button** during processing will **cancel the in‑flight run only**. No new run starts. The UI returns to idle: the status bar and status message are hidden and the active button highlight is cleared. The just‑submitted user message is removed from the chat window and placed back into the input box.
+* Clicking a **different** action button during processing will **cancel the in‑flight run** and start a new run based on your latest intent:
   * **Empty input box**: reuses the last user message (behaves like “redo” for that turn).
   * **New text in input box**: removes any unanswered trailing user message from history and uses the newly typed text.
 * The cancelled run does not add any partial results to history or model tabs.

@@ -19,10 +19,10 @@ from ensemble_chat.core.settings_actions import (
     set_notifications as core_set_notifications,
 )
 from ensemble_chat.core.session_state import SessionState
-from ensemble_chat.core.interactions import prepare_user_and_state, resolve_last_user_text, budget_guard_message
+from ensemble_chat.core.interactions import prepare_user_and_state, resolve_last_user_text, budget_guard_message, pop_last_user_to_input
 from ensemble_chat.core.runtime import cancel_inflight
 from ensemble_chat.core.orchestrator import run_from_label
-from ensemble_chat.core.selectors import cost_line as sel_cost_line, model_display as sel_model_display, resubmissions_display as sel_resub_display, notifications_flag as sel_notify_flag
+from ensemble_chat.core.selectors import cost_line as sel_cost_line, model_display as sel_model_display, resubmissions_display as sel_resub_display, notifications_flag as sel_notify_flag, active_button_label as sel_active_button_label
 from ensemble_chat.core.session_actions import set_pdf as core_set_pdf, apply_provider_models as core_apply_models, reset_session_state as core_reset_session
 from ensemble_chat.ui.ui_render import render_event, render_status_hidden, render_chat_with_message
 from ensemble_chat.core.events import get_event_type
@@ -161,16 +161,42 @@ def wire_events(demo: gr.Blocks, ui: dict):
     )
 
     # --- User message handling ---
-    def _add_user_and_clear(user_input: str, s: SessionState):
-        print(f"[UI] action button clicked: input_len={len(user_input) if user_input else 0}")
-        # Always cancel any in-flight work on new click
-        _cancel_inflight(s)
-        # Delegate history preparation to core interactions (no functional change)
-        return prepare_user_and_state(user_input, s)
+    def _make_click_first(lbl: str):
+        def _handler(user_input: str, s: SessionState):
+            print(f"[UI] action button clicked: label='{lbl}', input_len={len(user_input) if user_input else 0}")
+            # Detect if clicking the active (orange) button while a run is in progress
+            run_phase = getattr(s, "_run_phase", "idle") or "idle"
+            is_running = run_phase in ("running_single", "running_multi")
+            try:
+                active_label = sel_active_button_label(s)
+            except Exception:
+                active_label = ""
+            clicking_active = (active_label == lbl)
+
+            if is_running and clicking_active:
+                # Cancel only; do not start a new run. Move the last user back to the input box.
+                try:
+                    _cancel_inflight(s)
+                except Exception as e:
+                    print(f"[UI] cancel_inflight error (active-click): {e}")
+                    traceback.print_exc()
+                chat_disp, last_text, s = pop_last_user_to_input(s)
+                try:
+                    # Signal next stage to reset UI and skip run start
+                    s._cancel_clicked = True
+                except Exception:
+                    pass
+                return chat_disp, last_text, s
+
+            # Normal behavior: cancel any in-flight work and prepare new state
+            _cancel_inflight(s)
+            return prepare_user_and_state(user_input, s)
+
+        return _handler
 
     for btn in btns:
         click_event = btn.click(
-            _add_user_and_clear,
+            _make_click_first(btn.value),
             inputs=[user_box, state],
             outputs=[chat, user_box, state],
             show_progress=False,
@@ -193,23 +219,41 @@ def wire_events(demo: gr.Blocks, ui: dict):
                     s._run_id = 0
                 handler_run_id = s._run_id
 
+                # If the click was a pure cancel (active button), reset UI and stop here
+                if getattr(s, "_cancel_clicked", False):
+                    try:
+                        delattr(s, "_cancel_clicked")
+                    except Exception:
+                        pass
+                    base = render_status_hidden(s)
+                    # Append empty active button signal to clear orange state
+                    yield (*base, gr.update(value=""))
+                    return
+
                 last_user = resolve_last_user_text(s)
                 if last_user is None:
                     print(f"[UI] no last_user found; aborting run")
-                    yield render_status_hidden(s)
+                    base = render_status_hidden(s)
+                    yield (*base, gr.update(value=""))
                     return
 
                 warn = budget_guard_message(s, 0.05)
                 if warn:
                     print(f"[UI] budget guard: {warn}")
-                    yield render_chat_with_message(s, warn)
+                    base = render_chat_with_message(s, warn)
+                    yield (*base, gr.update(value=""))
                     return
 
                 try:
                     async for event in run_from_label(lbl, last_user, s):
                             # If another click invalidated this run, stop immediately
                             if getattr(s, "_run_id", handler_run_id) != handler_run_id:
-                                print(f"[UI] run invalidated in UI loop; stopping rendering")
+                                print(f"[UI] run invalidated in UI loop; cleaning up UI and stopping rendering")
+                                base = render_status_hidden(s)
+                                try:
+                                    yield (*base, gr.update(value=""))
+                                except Exception:
+                                    yield base
                                 return
                             ev_type = get_event_type(event)
                             # On run start lifecycle, emit active button signal (logging-only JS for now)
@@ -242,6 +286,12 @@ def wire_events(demo: gr.Blocks, ui: dict):
                                     return
                 except asyncio.CancelledError:
                     print(f"[UI] process cancelled in _handler: label='{lbl}', handler_run_id={handler_run_id}, state_run_id={getattr(s, '_run_id', None)}")
+                    # Ensure UI is reset: hide status and clear active button highlight
+                    base = render_status_hidden(s)
+                    try:
+                        yield (*base, gr.update(value=""))
+                    except Exception:
+                        yield base
                     return
                 except Exception as e:
                     print(f"[UI] exception in _handler event loop: {e}")
