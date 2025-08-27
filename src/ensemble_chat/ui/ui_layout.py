@@ -16,7 +16,7 @@ def build_base_layout(initial_state: SessionState, app_settings, model_configs, 
         with gr.Tabs(selected=4) as tabs:
             with gr.Tab("Chat"):
                 chat = gr.Chatbot(
-                    height=630,
+                    height=500,
                     elem_id="chat_interface",
                     autoscroll=False,
                     show_label=False,
@@ -42,7 +42,7 @@ def build_base_layout(initial_state: SessionState, app_settings, model_configs, 
                         for label in BUTTONS
                     ]
 
-            MODEL_TAB_HEIGHT = 700
+            MODEL_TAB_HEIGHT = 600
             with gr.Tab("ChatGPT"):
                 chatgpt_cost = gr.Markdown(
                     sel_cost_line(initial_state, "ChatGPT"),
