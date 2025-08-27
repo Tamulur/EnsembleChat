@@ -1,4 +1,4 @@
-# Overview\.md
+# Overview of the Functionality of the App
 
 ## Goal
 
