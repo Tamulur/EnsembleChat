@@ -1,5 +1,6 @@
 import gradio as gr
 import traceback
+import asyncio
 
 from ensemble_chat.ui.frontend_js import (
     JS_SCROLL_FIX_AFTER_EVENT,
@@ -204,39 +205,48 @@ def wire_events(demo: gr.Blocks, ui: dict):
                     yield render_chat_with_message(s, warn)
                     return
 
-                async for event in run_from_label(lbl, last_user, s):
-                        # If another click invalidated this run, stop immediately
-                        if getattr(s, "_run_id", handler_run_id) != handler_run_id:
-                            print(f"[UI] run invalidated in UI loop; stopping rendering")
-                            return
-                        ev_type = get_event_type(event)
-                        # On run start lifecycle, emit active button signal (logging-only JS for now)
-                        if ev_type == "run_started":
-                            try:
-                                elem_id = active_button_elem_id(s)
-                                print(f"[UI] active_signal(run_started) -> {elem_id}")
-                                base = render_status_hidden(s)
-                                yield (
-                                    base[0], base[1], base[2], base[3], base[4], base[5], base[6], base[7], base[8], base[9],
-                                    gr.update(value=elem_id),
-                                )
-                            except Exception as e:
-                                print(f"[UI] active_signal(run_started) error: {e}")
-                        if ev_type in ("status", "final", "error"):
-                            updates = render_event(s, event)
-                            # Append the active button signal as an 11th output to keep consistency
-                            try:
-                                elem_id = active_button_elem_id(s) if ev_type != "final" else ""
-                                if elem_id:
-                                    print(f"[UI] active_signal({ev_type}) -> {elem_id}")
-                                else:
-                                    print(f"[UI] active_signal({ev_type}) -> (cleared)")
-                                yield (*updates, gr.update(value=elem_id))
-                            except Exception as e:
-                                print(f"[UI] active_signal append error: {e}")
-                                yield updates
-                            if ev_type == "final":
+                try:
+                    async for event in run_from_label(lbl, last_user, s):
+                            # If another click invalidated this run, stop immediately
+                            if getattr(s, "_run_id", handler_run_id) != handler_run_id:
+                                print(f"[UI] run invalidated in UI loop; stopping rendering")
                                 return
+                            ev_type = get_event_type(event)
+                            # On run start lifecycle, emit active button signal (logging-only JS for now)
+                            print(f"[UI] ev_type: {ev_type}")
+                            if ev_type == "run_started":
+                                try:
+                                    elem_id = active_button_elem_id(s)
+                                    print(f"[UI] active_signal(run_started) -> {elem_id}")
+                                    base = render_status_hidden(s)
+                                    yield (
+                                        base[0], base[1], base[2], base[3], base[4], base[5], base[6], base[7], base[8], base[9],
+                                        gr.update(value=elem_id),
+                                    )
+                                except Exception as e:
+                                    print(f"[UI] active_signal(run_started) error: {e}")
+                            if ev_type in ("status", "final", "error"):
+                                updates = render_event(s, event)
+                                # Append the active button signal as an 11th output to keep consistency
+                                try:
+                                    elem_id = active_button_elem_id(s) if ev_type != "final" else ""
+                                    if elem_id:
+                                        print(f"[UI] active_signal({ev_type}) -> {elem_id}")
+                                    else:
+                                        print(f"[UI] active_signal({ev_type}) -> (cleared)")
+                                    yield (*updates, gr.update(value=elem_id))
+                                except Exception as e:
+                                    print(f"[UI] active_signal append error: {e}")
+                                    yield updates
+                                if ev_type == "final":
+                                    return
+                except asyncio.CancelledError:
+                    print(f"[UI] process cancelled in _handler: label='{lbl}', handler_run_id={handler_run_id}, state_run_id={getattr(s, '_run_id', None)}")
+                    return
+                except Exception as e:
+                    print(f"[UI] exception in _handler event loop: {e}")
+                    traceback.print_exc()
+                    return
 
             return _handler
 
