@@ -1,4 +1,5 @@
 import gradio as gr
+import traceback
 
 from ensemble_chat.ui.frontend_js import (
     JS_SCROLL_FIX_AFTER_EVENT,
@@ -112,8 +113,9 @@ def wire_events(demo: gr.Blocks, ui: dict):
         # Cancel any in-flight work before resetting
         try:
             _cancel_inflight(s)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[UI] cancel_inflight error: {e}")
+            traceback.print_exc()
         from ensemble_chat.core.session_state import SESSION_FILE
         try:
             if SESSION_FILE.exists():

@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 from typing import List, Dict, Optional
 
 from ensemble_chat.core import prompts
@@ -38,8 +39,9 @@ async def call_proposer(model_label: str, user_input: str, chat_history: List[Di
                 delay = min(0.5 * (2 ** (attempt - 1)), 8.0)
                 try:
                     await asyncio.sleep(delay)
-                except Exception:
-                    pass
+                except Exception as sleep_exc:
+                    print(f"[CORE][proposer] sleep failed after attempt {attempt} for {model_label}: {sleep_exc}")
+                    traceback.print_exc()
             else:
                 raise last_exc
 
@@ -91,8 +93,9 @@ async def call_synthesis(
                 delay = min(0.5 * (2 ** (attempt - 1)), 8.0)
                 try:
                     await asyncio.sleep(delay)
-                except Exception:
-                    pass
+                except Exception as sleep_exc:
+                    print(f"[CORE][proposer] synth sleep failed after attempt {attempt} for {model_label}: {sleep_exc}")
+                    traceback.print_exc()
             else:
                 raise last_exc
 

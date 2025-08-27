@@ -1,4 +1,5 @@
 import gradio as gr
+import traceback
 
 from ensemble_chat.core.selectors import (
     cost_line as sel_cost_line,
@@ -60,8 +61,9 @@ def render_event(state, event):
         disp = state.chat_history.as_display()
         try:
             disp.append((None, msg))
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[UI][render] error append failed: {e}")
+            traceback.print_exc()
         return (
             disp,
             gr.update(value="", visible=False),
@@ -115,8 +117,9 @@ def render_chat_with_message(state, message: str):
     disp = state.chat_history.as_display()
     try:
         disp.append((None, message))
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[UI][render] chat_with_message append failed: {e}")
+        traceback.print_exc()
     return render_status_hidden(state, chat=disp)
 
 

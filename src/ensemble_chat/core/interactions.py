@@ -1,4 +1,5 @@
 from typing import Tuple, List, Optional
+import traceback
 
 from ensemble_chat.core.session_state import SessionState, save_session
 
@@ -18,19 +19,27 @@ def prepare_user_and_state(user_input: str, s: SessionState) -> Tuple[List, str,
         # Regenerate: keep last user message, ensure no dangling assistant
         try:
             s.chat_history.remove_last_assistant()
-        except Exception:
-            pass
-        save_session(s)
+        except Exception as e:
+            print(f"[CORE][interactions] remove_last_assistant error: {e}")
+            traceback.print_exc()
+        try:
+            save_session(s)
+        except Exception as e:
+            print(f"[CORE][interactions] save_session error (redo): {e}")
         return s.chat_history.as_display(), "", s
 
     # New query: remove any unanswered trailing user from an aborted run
     try:
         s.chat_history.remove_last_user()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[CORE][interactions] remove_last_user error: {e}")
+        traceback.print_exc()
     s.chat_history.add_user(user_input)
     print(f"[CORE][interactions] prepare_user_and_state: new input len={len(user_input)}")
-    save_session(s)
+    try:
+        save_session(s)
+    except Exception as e:
+        print(f"[CORE][interactions] save_session error (new input): {e}")
     return s.chat_history.as_display(), "", s
 
 

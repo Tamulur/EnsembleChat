@@ -20,8 +20,10 @@ def resolve_run_mode(button_label: str) -> Tuple[str, List[str]]:
       - ("multi", [models...]) for multi-model runs
     """
     if button_label in SINGLE_LABELS:
+        print(f"[CORE][run_modes] resolve_run_mode('{button_label}') -> single")
         return "single", [button_label]
     models = MULTI_BUTTON_MODELS.get(button_label, [])
+    print(f"[CORE][run_modes] resolve_run_mode('{button_label}') -> multi {models}")
     return "multi", models
 
 

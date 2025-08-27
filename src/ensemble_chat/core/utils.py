@@ -125,8 +125,13 @@ def create_user_friendly_error_message(error: Exception, model_label: str) -> st
         tb = traceback.format_exc()
         if tb:
             print(tb)
-    except Exception:
-        pass
+    except Exception as log_exc:
+        try:
+            print(f"[ERROR] Failed while logging provider error for '{model_label}': {repr(log_exc)}")
+            traceback.print_exc()
+        except Exception:
+            # Best-effort logging; avoid raising from logging path
+            pass
     error_str = str(error).lower()
     
     # Check for specific error patterns

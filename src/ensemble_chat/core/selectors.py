@@ -1,4 +1,5 @@
 from typing import List, Tuple, Any
+import traceback
 
 from ensemble_chat.core.session_state import SessionState, _sanitize_pairs_for_display
 
@@ -17,8 +18,9 @@ def model_display(s: SessionState, model_label: str) -> List[Tuple[str, str]]:
             txt = getattr(x, "text", None)
             if isinstance(txt, str):
                 return txt
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[CORE][selectors] _ensure_text getattr error: {e}")
+            traceback.print_exc()
         return str(x)
 
     raw_pairs = s.model_histories.get(model_label, [])

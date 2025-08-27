@@ -1,5 +1,6 @@
 from ensemble_chat.core.session_state import SessionState
 from ensemble_chat.core.run_state import mark_cancelled
+import traceback
 
 
 def cancel_inflight(s: SessionState) -> None:
@@ -29,14 +30,16 @@ def cancel_inflight(s: SessionState) -> None:
                 if hasattr(t, "cancel"):
                     print(f"[CORE][cancel] Cancelling task={t}")
                     t.cancel()
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[CORE][cancel] Error cancelling task: {e}")
+                traceback.print_exc()
         s._current_task = None
         mark_cancelled(s)
         print("[CORE][cancel] Cancellation signal sent; marked as cancelled")
-    except Exception:
-        # Never let cancellation path throw
-        pass
+    except Exception as e:
+        # Never let cancellation path throw, but log the error
+        print(f"[CORE][cancel] cancel_inflight error: {e}")
+        traceback.print_exc()
 
 
 __all__ = [
