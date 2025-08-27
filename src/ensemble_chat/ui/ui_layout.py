@@ -5,7 +5,7 @@ from ensemble_chat.ui.frontend_css import CSS_GLOBAL
 from ensemble_chat.ui.frontend_js import JS_ALIGN_ON_CHANGE
 from ensemble_chat.core.session_state import SessionState
 from ensemble_chat.core.selectors import cost_line as sel_cost_line, model_display as sel_model_display, resubmissions_display as sel_resub_display
-from ensemble_chat.ui.ui_constants import ICON_MAP, BUTTONS, LATEX_DELIMITERS
+from ensemble_chat.ui.ui_constants import ICON_MAP, BUTTONS, LATEX_DELIMITERS, STOP_ICON
 
 
 def build_base_layout(initial_state: SessionState, app_settings, model_configs, wire=None):
@@ -28,6 +28,8 @@ def build_base_layout(initial_state: SessionState, app_settings, model_configs, 
                 user_box = gr.Textbox(label="You", value="")
                 notify_flag = gr.Textbox(value="", visible=False)
                 active_button_signal = gr.Textbox(value="", visible=False)
+                # Hidden button to ensure Gradio serves the stop icon (visible but will be hidden with CSS)
+                stop_icon_ref = gr.Button(value="Hidden", icon=STOP_ICON, visible=True, elem_id="hidden_stop_icon_btn")
 
                 with gr.Row():
                     BUTTON_ID_MAP = {

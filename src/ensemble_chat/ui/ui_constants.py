@@ -20,6 +20,7 @@ ICON_MAP = {
     "Gemini": str(ICON_DIR / "Gemini.png"),
     "ChatGPT & Gemini": str(ICON_DIR / "ChatGPT_Gemini.png"),
     "All": str(ICON_DIR / "All.png"),
+    "_stop_internal": str(ICON_DIR / "Stop_Sign.png"),  # Internal reference to ensure Gradio serves this file
 }
 
 # Placeholder for stop icon; used later for visual swap

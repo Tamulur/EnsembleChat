@@ -49,6 +49,10 @@ CSS_GLOBAL = (
     "  background-color: #e07600 !important; /* slightly darker orange on hover */\n"
     "  border-color: #e07600 !important;\n"
     "}\n"
+    "/* Hide the stop icon reference button */\n"
+    "#hidden_stop_icon_btn {\n"
+    "  display: none !important;\n"
+    "}\n"
 )
 
 

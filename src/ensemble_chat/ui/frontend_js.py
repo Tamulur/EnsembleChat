@@ -304,17 +304,85 @@ JS_TOGGLE_ACTIVE_BUTTON = """
     const app = document.querySelector('gradio-app');
     const doc = (app && app.shadowRoot) ? app.shadowRoot : document;
     const ids = ['btn_chatgpt','btn_claude','btn_gemini','btn_chatgpt_gemini','btn_all'];
+    
     const clearAll = () => {
       ids.forEach(id => {
         const host = doc.getElementById(id);
-        if (host) host.removeAttribute('data-active');
+        if (host) {
+          // Restore original icon if stored
+          const originalIcon = host.getAttribute('data-original-icon');
+          const originalAlt = host.getAttribute('data-original-alt');
+          if (originalIcon) {
+            const img = host.querySelector('img');
+            if (img) {
+              img.src = originalIcon;
+              img.onerror = null;
+              if (originalAlt !== null) {
+                img.alt = originalAlt;
+              }
+            }
+            host.removeAttribute('data-original-icon');
+            host.removeAttribute('data-original-alt');
+          }
+          host.removeAttribute('data-active');
+        }
       });
     };
-    console.log("[UI][button] active signal:", signal);
+    
     if (!signal || typeof signal !== 'string') { clearAll(); return; }
+    
     clearAll();
     const host = doc.getElementById(signal);
-    if (host) host.setAttribute('data-active','true');
+    if (host) {
+      // Store original icon and replace with stop icon
+      const img = host.querySelector('img');
+      if (img && img.src) {
+        host.setAttribute('data-original-icon', img.src);
+        
+        // Find the hidden stop icon button to get the correct Gradio-served URL
+        let stopIconPath = null;
+        
+        // Look for the hidden button with stop icon
+        const hiddenStopBtn = doc.getElementById('hidden_stop_icon_btn');
+        if (hiddenStopBtn) {
+          const hiddenImg = hiddenStopBtn.querySelector('img');
+          if (hiddenImg && hiddenImg.src && hiddenImg.src.includes('Stop_Sign.png')) {
+            stopIconPath = hiddenImg.src;
+          }
+        }
+        
+        // Fallback: search all images for stop icon
+        if (!stopIconPath) {
+          const allImages = doc.querySelectorAll('img');
+          for (const hiddenImg of allImages) {
+            if (hiddenImg.src && hiddenImg.src.includes('Stop_Sign.png')) {
+              stopIconPath = hiddenImg.src;
+              break;
+            }
+          }
+        }
+        
+        // Final fallback: construct from original path
+        if (!stopIconPath) {
+          const originalSrc = img.src;
+          const lastSlash = originalSrc.lastIndexOf('/');
+          stopIconPath = originalSrc.substring(0, lastSlash + 1) + 'Stop_Sign.png';
+        }
+        
+        // Store original alt text and apply stop icon
+        host.setAttribute('data-original-alt', img.alt || '');
+        img.alt = 'Stop';
+        img.src = stopIconPath;
+        
+        // Handle load errors gracefully
+        img.onerror = () => {
+          console.warn('[UI][button] Stop icon failed to load, keeping original icon');
+          img.src = host.getAttribute('data-original-icon');
+          img.alt = host.getAttribute('data-original-alt') || '';
+        };
+      }
+      host.setAttribute('data-active','true');
+    }
   } catch (e) {
     console.warn('[UI][button] active toggle error', e);
   }
