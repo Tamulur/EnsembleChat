@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from typing import Dict, List, Optional, Tuple
 
 try:
@@ -99,6 +100,10 @@ async def call(messages: List[Dict[str, str]], pdf_path: Optional[str], *, tempe
     if system_prompt:
         api_params["system"] = system_prompt
 
+    # Log the start of the LLM call with timestamp
+    start_timestamp = time.time()
+    print(f"[ANTHROPIC] Starting LLM call at timestamp: {start_timestamp:.3f} seconds")
+    
     resp = await client.messages.create(**api_params)
     answer = next((blk.text for blk in resp.content if blk.type == "text"), "")
 
