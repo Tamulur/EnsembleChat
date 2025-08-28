@@ -19,7 +19,7 @@ def model_display(s: SessionState, model_label: str) -> List[Tuple[str, str]]:
             if isinstance(txt, str):
                 return txt
         except Exception as e:
-            print(f"[CORE][selectors] _ensure_text getattr error: {e}")
+            print(f"[ERROR][CORE][selectors] _ensure_text getattr error: {e}")
             traceback.print_exc()
         return str(x)
 

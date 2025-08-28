@@ -31,14 +31,14 @@ def cancel_inflight(s: SessionState) -> None:
                     print(f"[CORE][cancel] Cancelling task={t}")
                     t.cancel()
             except Exception as e:
-                print(f"[CORE][cancel] Error cancelling task: {e}")
+                print(f"[ERROR][CORE][cancel] Error cancelling task: {e}")
                 traceback.print_exc()
         s._current_task = None
         mark_cancelled(s)
         print("[CORE][cancel] Cancellation signal sent; marked as cancelled")
     except Exception as e:
         # Never let cancellation path throw, but log the error
-        print(f"[CORE][cancel] cancel_inflight error: {e}")
+        print(f"[ERROR][CORE][cancel] cancel_inflight error: {e}")
         traceback.print_exc()
 
 

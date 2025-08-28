@@ -11,12 +11,17 @@ if SRC not in sys.path:
     sys.path.insert(0, SRC)
 
 from ensemble_chat.ui.ui import build_ui
+from ensemble_chat.core.console import install_print_colorizer
 
 
 def main():
     os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
     # Suppress noisy runtime warnings caused by Gradio closing async generators
     warnings.filterwarnings("ignore", category=RuntimeWarning, message=r".*aclose.*was never awaited.*")
+    try:
+        install_print_colorizer()
+    except Exception:
+        pass
     demo = build_ui()
     demo.queue()
     demo.launch()

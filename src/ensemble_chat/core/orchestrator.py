@@ -18,13 +18,13 @@ async def run_from_label(button_label: str, last_user: str, state: SessionState)
     try:
         mode, models_or_single = resolve_run_mode(button_label)
     except Exception as e:
-        print(f"[CORE][orchestrator] resolve_run_mode error for label='{button_label}': {e}")
+        print(f"[ERROR][CORE][orchestrator] resolve_run_mode error for label='{button_label}': {e}")
         raise
     print(f"[CORE][orchestrator] run_from_label: label='{button_label}', mode='{mode}', models={models_or_single}, run_id={getattr(state, '_run_id', None)}")
     try:
         run_snapshot(state)
     except Exception as e:
-        print(f"[CORE][orchestrator] run_snapshot error: {e}")
+        print(f"[ERROR][CORE][orchestrator] run_snapshot error: {e}")
         traceback.print_exc()
 
     # Track current task centrally so cancellation can be handled in core
@@ -32,7 +32,7 @@ async def run_from_label(button_label: str, last_user: str, state: SessionState)
         state._current_task = _asyncio.current_task()
         print(f"[CORE][orchestrator] set current_task={state._current_task}")
     except Exception as e:
-        print(f"[CORE][orchestrator] set current_task error: {e}")
+        print(f"[ERROR][CORE][orchestrator] set current_task error: {e}")
         traceback.print_exc()
 
     try:
@@ -41,13 +41,13 @@ async def run_from_label(button_label: str, last_user: str, state: SessionState)
             try:
                 start_single(state, model)
             except Exception as e:
-                print(f"[CORE][orchestrator] start_single error: {e}")
+                print(f"[ERROR][CORE][orchestrator] start_single error: {e}")
                 raise
             # Log active button info via selectors
             try:
                 _ = active_button_elem_id(state)
             except Exception as e:
-                print(f"[CORE][orchestrator] active_button_elem_id error (single): {e}")
+                print(f"[ERROR][CORE][orchestrator] active_button_elem_id error (single): {e}")
                 traceback.print_exc()
             # Emit run started lifecycle event
             print(f"[CORE][orchestrator] lifecycle -> RunStartedEvent({model})")
@@ -68,7 +68,7 @@ async def run_from_label(button_label: str, last_user: str, state: SessionState)
                     else:
                         yield event
             except Exception as e:
-                print(f"[CORE][orchestrator] run_single loop error: {e}")
+                print(f"[ERROR][CORE][orchestrator] run_single loop error: {e}")
                 raise
         else:
             models = models_or_single
@@ -76,12 +76,12 @@ async def run_from_label(button_label: str, last_user: str, state: SessionState)
             try:
                 start_multi(state, models, state.selected_aggregator, button_label=button_label)
             except Exception as e:
-                print(f"[CORE][orchestrator] start_multi error: {e}")
+                print(f"[ERROR][CORE][orchestrator] start_multi error: {e}")
                 raise
             try:
                 _ = active_button_elem_id(state)
             except Exception as e:
-                print(f"[CORE][orchestrator] active_button_elem_id error (multi): {e}")
+                print(f"[ERROR][CORE][orchestrator] active_button_elem_id error (multi): {e}")
                 traceback.print_exc()
             print(f"[CORE][orchestrator] lifecycle -> RunStartedEvent(Multi)")
             yield RunStartedEvent(label="Multi")
@@ -98,7 +98,7 @@ async def run_from_label(button_label: str, last_user: str, state: SessionState)
                     else:
                         yield event
             except Exception as e:
-                print(f"[CORE][orchestrator] run_multi loop error: {e}")
+                print(f"[ERROR][CORE][orchestrator] run_multi loop error: {e}")
                 raise
     finally:
         try:
@@ -108,7 +108,7 @@ async def run_from_label(button_label: str, last_user: str, state: SessionState)
             if getattr(state, "_run_phase", None) in ("completed", "cancelled"):
                 clear(state)
         except Exception as e:
-            print(f"[CORE][orchestrator] cleanup error: {e}")
+            print(f"[ERROR][CORE][orchestrator] cleanup error: {e}")
             traceback.print_exc()
 
 

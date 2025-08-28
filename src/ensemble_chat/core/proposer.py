@@ -34,13 +34,13 @@ async def call_proposer(model_label: str, user_input: str, chat_history: List[Di
             return text
         except Exception as e:
             last_exc = e
-            print(f"[CORE][proposer] attempt {attempt} failed for {model_label}: {repr(e)}")
+            print(f"[ERROR][CORE][proposer] attempt {attempt} failed for {model_label}: {repr(e)}")
             if attempt < retries:
                 delay = min(0.5 * (2 ** (attempt - 1)), 8.0)
                 try:
                     await asyncio.sleep(delay)
                 except Exception as sleep_exc:
-                    print(f"[CORE][proposer] sleep failed after attempt {attempt} for {model_label}: {sleep_exc}")
+                    print(f"[ERROR][CORE][proposer] sleep failed after attempt {attempt} for {model_label}: {sleep_exc}")
                     traceback.print_exc()
             else:
                 raise last_exc
@@ -88,13 +88,13 @@ async def call_synthesis(
             return text
         except Exception as e:
             last_exc = e
-            print(f"[CORE][proposer] synth attempt {attempt} failed for {model_label}: {repr(e)}")
+            print(f"[ERROR][CORE][proposer] synth attempt {attempt} failed for {model_label}: {repr(e)}")
             if attempt < retries:
                 delay = min(0.5 * (2 ** (attempt - 1)), 8.0)
                 try:
                     await asyncio.sleep(delay)
                 except Exception as sleep_exc:
-                    print(f"[CORE][proposer] synth sleep failed after attempt {attempt} for {model_label}: {sleep_exc}")
+                    print(f"[ERROR][CORE][proposer] synth sleep failed after attempt {attempt} for {model_label}: {sleep_exc}")
                     traceback.print_exc()
             else:
                 raise last_exc

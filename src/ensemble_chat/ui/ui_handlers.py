@@ -115,7 +115,7 @@ def wire_events(demo: gr.Blocks, ui: dict):
         try:
             _cancel_inflight(s)
         except Exception as e:
-            print(f"[UI] cancel_inflight error: {e}")
+            print(f"[ERROR][UI] cancel_inflight error: {e}")
             traceback.print_exc()
         from ensemble_chat.core.session_state import SESSION_FILE
         try:
@@ -178,7 +178,7 @@ def wire_events(demo: gr.Blocks, ui: dict):
                 try:
                     _cancel_inflight(s)
                 except Exception as e:
-                    print(f"[UI] cancel_inflight error (active-click): {e}")
+                    print(f"[ERROR][UI] cancel_inflight error (active-click): {e}")
                     traceback.print_exc()
                 chat_disp, last_text, s = pop_last_user_to_input(s)
                 try:
@@ -268,7 +268,7 @@ def wire_events(demo: gr.Blocks, ui: dict):
                                         gr.update(value=elem_id),
                                     )
                                 except Exception as e:
-                                    print(f"[UI] active_signal(run_started) error: {e}")
+                                    print(f"[ERROR][UI] active_signal(run_started) error: {e}")
                             if ev_type in ("status", "final", "error"):
                                 updates = render_event(s, event)
                                 # Append the active button signal as an 11th output to keep consistency
@@ -280,7 +280,7 @@ def wire_events(demo: gr.Blocks, ui: dict):
                                         print(f"[UI] active_signal({ev_type}) -> (cleared)")
                                     yield (*updates, gr.update(value=elem_id))
                                 except Exception as e:
-                                    print(f"[UI] active_signal append error: {e}")
+                                    print(f"[ERROR][UI] active_signal append error: {e}")
                                     yield updates
                                 if ev_type == "final":
                                     return
@@ -294,7 +294,7 @@ def wire_events(demo: gr.Blocks, ui: dict):
                         yield base
                     return
                 except Exception as e:
-                    print(f"[UI] exception in _handler event loop: {e}")
+                    print(f"[ERROR][UI] exception in _handler event loop: {e}")
                     traceback.print_exc()
                     return
 

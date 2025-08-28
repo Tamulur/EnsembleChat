@@ -56,11 +56,11 @@ async def run_single(
         state.chat_history.add_assistant(reply_text)
         state.model_histories[model_label].append((last_user, reply_text))
     except Exception as e:
-        print(f"[CORE][engine.single] state update error: {e}")
+        print(f"[ERROR][CORE][engine.single] state update error: {e}")
     try:
         save_chat(state.chat_id, state.chat_history.entries(), state.pdf_path)
     except Exception as e:
-        print(f"[CORE][engine.single] save_chat error: {e}")
+        print(f"[ERROR][CORE][engine.single] save_chat error: {e}")
 
     print(f"[CORE][engine.single] final emitted, chars={len(reply_text)}")
     yield FinalEvent(text=reply_text)

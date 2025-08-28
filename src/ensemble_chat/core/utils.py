@@ -136,18 +136,18 @@ def create_user_friendly_error_message(error: Exception, model_label: str) -> st
     
     # Check for specific error patterns
     if "529" in error_str or "overloaded" in error_str:
-        return f"**{model_label} is temporarily overloaded** and unable to process requests. This usually resolves within a few minutes. Please try again shortly."
+        return f"[ERROR]**{model_label} is temporarily overloaded** and unable to process requests. This usually resolves within a few minutes. Please try again shortly."
     elif "timeout" in error_str:
-        return f"**Request to {model_label} timed out.** The model may be experiencing high load. Please try again."
+        return f"[ERROR]**Request to {model_label} timed out.** The model may be experiencing high load. Please try again."
     elif "rate limit" in error_str or "quota" in error_str:
-        return f"**{model_label} rate limit exceeded.** Please wait a moment before trying again."
+        return f"[ERROR]**{model_label} rate limit exceeded.** Please wait a moment before trying again."
     elif "authentication" in error_str or "api key" in error_str:
-        return f"**Authentication error with {model_label}.** Please check your API configuration."
+        return f"[ERROR]**Authentication error with {model_label}.** Please check your API configuration."
     elif "connection" in error_str or "network" in error_str:
-        return f"**Network connection error with {model_label}.** Please check your internet connection and try again."
+        return f"[ERROR]**Network connection error with {model_label}.** Please check your internet connection and try again."
     else:
         # Generic error message for unknown errors
-        return f"**{model_label} encountered an error.** Please try again or select a different model."
+        return f"[ERROR]**{model_label} encountered an error.** Please try again or select a different model."
 
 
 def timestamp_id() -> str:

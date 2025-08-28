@@ -73,7 +73,7 @@ async def call_aggregator(
         # Check if this is a 529 overload error and give it one more chance with more retries
         error_str = str(e).lower()
         if ("529" in error_str or "overloaded" in error_str) and iteration == 1:
-            print(f"[AGGREGATOR] Detected overload error on first attempt, retrying with more attempts...")
+            print(f"[WARN][AGGREGATOR] Detected overload error on first attempt, retrying with more attempts...")
             # Only retry with more attempts on the first iteration to avoid endless loops
             try:
                 print(f"[CORE][aggregator] overload retry -> provider internal retries=3")
@@ -88,11 +88,11 @@ async def call_aggregator(
                 print(f"[CORE][aggregator] success after overload retry")
                 return response_text
             except LLMError as e2:
-                print(f"[CORE][aggregator] overload retry failed: {repr(e2)}")
+                print(f"[ERROR][CORE][aggregator] overload retry failed: {repr(e2)}")
                 raise
         else:
             # For non-overload errors or later iterations, just fail
-            print(f"[CORE][aggregator] attempt failed (non-overload or later iteration): {repr(e)}")
+            print(f"[ERROR][CORE][aggregator] attempt failed (non-overload or later iteration): {repr(e)}")
             raise
 
 

@@ -20,26 +20,26 @@ def prepare_user_and_state(user_input: str, s: SessionState) -> Tuple[List, str,
         try:
             s.chat_history.remove_last_assistant()
         except Exception as e:
-            print(f"[CORE][interactions] remove_last_assistant error: {e}")
+            print(f"[ERROR][CORE][interactions] remove_last_assistant error: {e}")
             traceback.print_exc()
         try:
             save_session(s)
         except Exception as e:
-            print(f"[CORE][interactions] save_session error (redo): {e}")
+            print(f"[ERROR][CORE][interactions] save_session error (redo): {e}")
         return s.chat_history.as_display(), "", s
 
     # New query: remove any unanswered trailing user from an aborted run
     try:
         s.chat_history.remove_last_user()
     except Exception as e:
-        print(f"[CORE][interactions] remove_last_user error: {e}")
+        print(f"[ERROR][CORE][interactions] remove_last_user error: {e}")
         traceback.print_exc()
     s.chat_history.add_user(user_input)
     print(f"[CORE][interactions] prepare_user_and_state: new input len={len(user_input)}")
     try:
         save_session(s)
     except Exception as e:
-        print(f"[CORE][interactions] save_session error (new input): {e}")
+        print(f"[ERROR][CORE][interactions] save_session error (new input): {e}")
     return s.chat_history.as_display(), "", s
 
 
@@ -75,10 +75,10 @@ def pop_last_user_to_input(s: SessionState) -> Tuple[List, str, SessionState]:
                 try:
                     save_session(s)
                 except Exception as e:
-                    print(f"[CORE][interactions] save_session error (pop_last_user): {e}")
+                    print(f"[ERROR][CORE][interactions] save_session error (pop_last_user): {e}")
                 return s.chat_history.as_display(), last_text, s
     except Exception as e:
-        print(f"[CORE][interactions] pop_last_user_to_input error: {e}")
+        print(f"[ERROR][CORE][interactions] pop_last_user_to_input error: {e}")
         traceback.print_exc()
     # Nothing to pop; keep input empty
     return s.chat_history.as_display(), "", s

@@ -57,12 +57,12 @@ def render_event(state, event):
     if ev_type == "error":
         # Display a transient message appended to chat and keep status hidden
         msg = text or ""
-        print(f"[UI][render] error -> append message, hide status")
+        print(f"[ERROR][UI][render] error -> append message, hide status")
         disp = state.chat_history.as_display()
         try:
             disp.append((None, msg))
         except Exception as e:
-            print(f"[UI][render] error append failed: {e}")
+            print(f"[ERROR][UI][render] error append failed: {e}")
             traceback.print_exc()
         return (
             disp,
@@ -118,7 +118,7 @@ def render_chat_with_message(state, message: str):
     try:
         disp.append((None, message))
     except Exception as e:
-        print(f"[UI][render] chat_with_message append failed: {e}")
+        print(f"[ERROR][UI][render] chat_with_message append failed: {e}")
         traceback.print_exc()
     return render_status_hidden(state, chat=disp)
 
