@@ -34,6 +34,9 @@ from ensemble_chat.core.selectors import active_button_elem_id
 def wire_events(demo: gr.Blocks, ui: dict):
     state: gr.State = ui["state"]
     new_chat_btn: gr.Button = ui["new_chat_btn"]
+    confirm_overlay: gr.Group = ui.get("confirm_overlay")
+    confirm_new_chat_btn: gr.Button = ui.get("confirm_new_chat_btn")
+    cancel_new_chat_btn: gr.Button = ui.get("cancel_new_chat_btn")
     chat: gr.Chatbot = ui["chat"]
     status_display: gr.Markdown = ui["status_display"]
     user_box: gr.Textbox = ui["user_box"]
@@ -108,7 +111,21 @@ def wire_events(demo: gr.Blocks, ui: dict):
 
     notifications_checkbox.change(_set_notifications, inputs=[notifications_checkbox, state], outputs=state)
 
-    # --- New Chat (reset session) ---
+    # --- New Chat (confirmation + reset session) ---
+    def _show_confirm_overlay():
+        try:
+            print("[UI] Showing confirmation overlay for New Chat")
+        except Exception:
+            pass
+        return gr.update(visible=True)
+
+    def _hide_confirm_overlay():
+        try:
+            print("[UI] Hiding confirmation overlay")
+        except Exception:
+            pass
+        return gr.update(visible=False)
+
     def _reset_session(s: SessionState):
         print(f"[UI] New Chat clicked: resetting session")
         # Cancel any in-flight work before resetting
@@ -140,25 +157,52 @@ def wire_events(demo: gr.Blocks, ui: dict):
             gr.update(value=None),
         )
 
-    new_chat_btn.click(
-        _reset_session,
-        inputs=state,
-        outputs=[
-            chat,
-            status_display,
-            chatgpt_cost,
-            chatgpt_view,
-            claude_cost,
-            claude_view,
-            gemini_cost,
-            gemini_view,
-            resub_view,
-            notify_flag,
-            state,
-            pdf_input,
-        ],
-        queue=False,
-    )
+    # Wire New Chat to show confirmation overlay
+    if confirm_overlay is not None:
+        new_chat_btn.click(_show_confirm_overlay, inputs=None, outputs=confirm_overlay, queue=False)
+        # Confirm triggers reset and hides overlay
+        confirm_new_chat_btn.click(
+            _reset_session,
+            inputs=state,
+            outputs=[
+                chat,
+                status_display,
+                chatgpt_cost,
+                chatgpt_view,
+                claude_cost,
+                claude_view,
+                gemini_cost,
+                gemini_view,
+                resub_view,
+                notify_flag,
+                state,
+                pdf_input,
+            ],
+            queue=False,
+        ).then(_hide_confirm_overlay, inputs=None, outputs=confirm_overlay)
+        # Cancel just hides overlay
+        cancel_new_chat_btn.click(_hide_confirm_overlay, inputs=None, outputs=confirm_overlay, queue=False)
+    else:
+        # Fallback: direct reset (should not happen if overlay exists)
+        new_chat_btn.click(
+            _reset_session,
+            inputs=state,
+            outputs=[
+                chat,
+                status_display,
+                chatgpt_cost,
+                chatgpt_view,
+                claude_cost,
+                claude_view,
+                gemini_cost,
+                gemini_view,
+                resub_view,
+                notify_flag,
+                state,
+                pdf_input,
+            ],
+            queue=False,
+        )
 
     # --- User message handling ---
     def _make_click_first(lbl: str):

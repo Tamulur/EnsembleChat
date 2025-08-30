@@ -13,6 +13,16 @@ def build_base_layout(initial_state: SessionState, app_settings, model_configs, 
         state = gr.State(initial_state)
         new_chat_btn = gr.Button(value="New Chat", elem_id="btn_new_chat")
 
+        # Confirmation overlay (hidden by default)
+        with gr.Group(visible=False, elem_id="confirm_overlay") as confirm_overlay:
+            with gr.Group(elem_id="confirm_modal"):
+                gr.Markdown(
+                    "Are you sure you want to start a new chat? This will clear the current conversation.",
+                )
+                with gr.Row():
+                    confirm_new_chat_btn = gr.Button(value="Confirm")
+                    cancel_new_chat_btn = gr.Button(value="Cancel")
+
         with gr.Tabs(selected=4) as tabs:
             with gr.Tab("Chat"):
                 chat = gr.Chatbot(
@@ -151,6 +161,9 @@ def build_base_layout(initial_state: SessionState, app_settings, model_configs, 
         ui = {
             "state": state,
             "new_chat_btn": new_chat_btn,
+            "confirm_overlay": confirm_overlay,
+            "confirm_new_chat_btn": confirm_new_chat_btn,
+            "cancel_new_chat_btn": cancel_new_chat_btn,
             "chat": chat,
             "status_display": status_display,
             "user_box": user_box,

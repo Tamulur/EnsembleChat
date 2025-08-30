@@ -36,7 +36,7 @@ Seven tabs: Chat, ChatGPT, Claude, Gemini, Attachments, Resubmissions, and Setti
   * **Empty input box**: reuses the last user message (behaves like “redo” for that turn).
   * **New text in input box**: removes any unanswered trailing user message from history and uses the newly typed text.
 * The cancelled run does not add any partial results to history or model tabs.
-* Clicking **New Chat** during processing cancels the in-flight run first, then resets the session.
+* Clicking **New Chat** during processing shows a confirmation dialogue, and if confirmed cancels the in-flight run first, then resets the session.
 
 ### Model tabs: last outputs of each LLM
 The next three tabs show the last output of each LLM that is produced when directly queried for an answer (with the ChatGPT, Claude or Gemini button), or when asked for a proposal (with the All button for example). The user query that was used to generate that LLM output precedes the output in the tab's chat window. The Claude tab contains only the output that was produced in these cases, it does not show the output that Claude produced in the aggregator role (if Claude is set to be the aggregator).
