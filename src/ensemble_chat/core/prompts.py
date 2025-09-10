@@ -19,7 +19,6 @@ def _examples() -> str:
     try:
         return _read(os.path.join("Prompts", "ExampleExplanations.txt"))
     except FileNotFoundError as e:
-        print(f"[WARN] Examples file missing: {e}. Continuing without examples.")
         return ""
 
 

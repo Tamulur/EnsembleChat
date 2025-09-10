@@ -23,7 +23,7 @@ def build_base_layout(initial_state: SessionState, app_settings, model_configs, 
                     confirm_new_chat_btn = gr.Button(value="Confirm")
                     cancel_new_chat_btn = gr.Button(value="Cancel")
 
-        with gr.Tabs(selected=4) as tabs:
+        with gr.Tabs() as tabs:
             with gr.Tab("Chat"):
                 chat = gr.Chatbot(
                     height=500,

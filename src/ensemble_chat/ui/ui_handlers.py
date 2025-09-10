@@ -366,7 +366,7 @@ def wire_events(demo: gr.Blocks, ui: dict):
         evt.then(None, inputs=[notify_flag], outputs=None, js=JS_NOTIFY_IF_FLAG)
 
     # JS on load hooks
-    demo.load(None, inputs=None, outputs=None, js=JS_SELECT_TAB_ATTACHMENTS_ON_LOAD)
+    # demo.load(None, inputs=None, outputs=None, js=JS_SELECT_TAB_ATTACHMENTS_ON_LOAD)
     demo.load(None, inputs=None, outputs=None, js=JS_PRESERVE_TAB_SCROLL)
     demo.load(None, inputs=None, outputs=None, js=JS_PREPARE_NOTIFICATIONS)
 
